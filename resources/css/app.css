@@ -2,8 +2,37 @@
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
+@source '../views/**/*.blade.php';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Instrument Sans', 'Inter', 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --color-orbit-navy: #0B1528;
+    --color-orbit-navy-light: #13223E;
+    --color-orbit-blue: #1E40AF;
+    --color-orbit-crimson: #D3003B;
+    --color-orbit-crimson-dark: #AD0030;
+}
+
+@layer base {
+    body {
+        font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+        -webkit-font-smoothing: antialiased;
+    }
+
+    .tabular-nums {
+        font-variant-numeric: tabular-nums;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+[x-cloak] {
+    display: none !important;
 }
