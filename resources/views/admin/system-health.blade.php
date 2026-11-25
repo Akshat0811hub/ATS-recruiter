@@ -1,7 +1,7 @@
 @extends('layouts.app')
-@section('title', 'System Health & Hosting Diagnostics')
-@section('page_title', 'Super Admin System Health & Hostinger Environment Diagnostics')
-@section('page_subtitle', 'Live verification of database connectivity, storage thresholds, scheduled tasks, SMTP status, and backup readiness')
+@section('title', 'System health')
+@section('page_title', 'System health')
+@section('page_subtitle', 'Check database, email, scheduled tasks and backup status.')
 
 @section('content')
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 text-xs">

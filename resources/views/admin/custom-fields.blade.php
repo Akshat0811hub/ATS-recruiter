@@ -1,7 +1,7 @@
 @extends('layouts.app')
-@section('title', 'Dynamic Custom Fields')
-@section('page_title', 'Configurable Candidate & Job Custom Fields')
-@section('page_subtitle', 'Extend candidate, job requirement, and client schemas without modifying database migrations')
+@section('title', 'Custom fields')
+@section('page_title', 'Custom fields')
+@section('page_subtitle', 'Manage additional fields for your recruitment records.')
 
 @section('content')
 <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 text-xs">

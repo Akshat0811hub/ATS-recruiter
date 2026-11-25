@@ -12,6 +12,7 @@ use App\Http\Controllers\JobRequirementController;
 use App\Http\Controllers\OfferAndJoiningController;
 use App\Http\Controllers\ProductivityAndReportController;
 use App\Http\Controllers\RecruitmentOperationController;
+use App\Http\Middleware\AuthorizeRecruitmentAccess;
 use Illuminate\Support\Facades\Route;
 
 // Public & Guest Authentication Routes
@@ -34,6 +35,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/profile', [AuthController::class, 'profile'])->name('profile.show');
     Route::put('/profile', [AuthController::class, 'updateProfile'])->name('profile.update');
     Route::post('/profile/two-factor', [AuthController::class, 'toggleTwoFactor'])->name('profile.two-factor');
+    Route::post('/profile/two-factor/confirm', [AuthController::class, 'confirmTwoFactor'])->name('profile.two-factor.confirm');
+    Route::post('/profile/two-factor/recovery-codes', [AuthController::class, 'regenerateRecoveryCodes'])->name('profile.two-factor.recovery-codes');
     Route::post('/profile/revoke-sessions', [AuthController::class, 'revokeOtherSessions'])->name('profile.revoke-sessions');
 
     // Secure Private Document Downloads (RBAC & Client-Isolation enforced in controller)
@@ -63,7 +66,7 @@ Route::middleware(['auth'])->group(function () {
     // =========================================================================
     // INTERNAL STAFF CRM & ATS WORKSPACE ROUTES
     // =========================================================================
-    Route::middleware(['role_or_permission:super_admin,manager,team_leader,recruiter'])->group(function () {
+    Route::middleware(['role_or_permission:super_admin,manager,team_leader,recruiter', AuthorizeRecruitmentAccess::class])->group(function () {
         // Workspace
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::get('/my-work', [DashboardController::class, 'myWork'])->name('my-work');

@@ -43,14 +43,15 @@
 - [ ] Phase 10: Owner approval to configure `crm.orbitouch-hr.com` subdomain DNS on Hostinger, populate live Hostinger MySQL & SMTP credentials and external backup destination (`ATS_BACKUP_EXTERNAL_DISK`) in production `.env`, and execute `scripts/deploy-hostinger.sh`.
 
 ## Latest Git & CI Status
-- **Latest Successful Commit:** `e041a28` (`test: add recruitment lifecycle integration, security and performance tests`)
-- **Latest Verified GitHub Push:** `main` branch (`origin/main` at `https://github.com/Akshat0811hub/ATS-recruiter.git`)
-- **Automated Test Results:** `20 passed, 0 failed (167 assertions in 3.49s)`
-- **Code Formatting (Laravel Pint):** `PASSED`
-- **Production Asset Build (Vite):** `PASSED (260ms)`
+- **Active Release Version:** `v1.1.0` (Workspace Access Hardening, Reports/Export Sync, Idempotent Recurring Tasks, Verified 2FA & Light-Theme UI Polish)
+- **Primary Repository:** `https://github.com/Akshat0811hub/ATS-recruiter.git` (`main` branch)
+- **Automated Test Results:** `26 passed, 0 failed (235 assertions)`
+- **Database Migration & Rollback Verification:** `PASSED` (`10 migrations` via `migrate:fresh` & `migrate:refresh`)
+- **Code Formatting (Laravel Pint) & Composer Security Audit:** `PASSED` (`0 advisories`)
+- **Production Asset Build (Vite):** `PASSED`
 
 ## Known Limitations & Blocking Issues
-- Live production cutover to `https://crm.orbitouch-hr.com/` awaits owner provisioning of the Hostinger MySQL credentials, SMTP password, and external off-server backup disk (`ATS_BACKUP_EXTERNAL_DISK`) in `.env` on the Hostinger server. The application explicitly surfaces external backup readiness status on `/admin/backups` and `/admin/system-health`.
+- Live production deployment to `https://crm.orbitouch-hr.com/`, live Hostinger MySQL verification, and live SMTP email delivery verification have not yet been executed and await owner provisioning of Hostinger production `.env` credentials (`DB_*`, `MAIL_*`, and `ATS_BACKUP_EXTERNAL_DISK`).
 
 ## Next Development Steps
 1. When ready for live cutover on Hostinger, follow `DEPLOYMENT_HOSTINGER.md` and run `bash scripts/deploy-hostinger.sh`.

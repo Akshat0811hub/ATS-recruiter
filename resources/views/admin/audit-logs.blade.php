@@ -1,7 +1,7 @@
 @extends('layouts.app')
-@section('title', 'Immutable Security Audit Logs')
-@section('page_title', 'Immutable Security & Administrative Audit Trail')
-@section('page_subtitle', 'Every critical mutation, permission change, document download, and override with credential redaction')
+@section('title', 'Audit log')
+@section('page_title', 'Audit log')
+@section('page_subtitle', 'Review who changed records and when.')
 
 @section('content')
 <form method="GET" action="{{ route('admin.audit-logs') }}" class="mb-5 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2.5 text-xs">

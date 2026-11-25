@@ -109,7 +109,7 @@ class User extends Authenticatable
 
     public function roleSlug(): string
     {
-        return $this->role?->slug ?? 'recruiter';
+        return $this->role?->slug ?? 'unassigned';
     }
 
     public function hasRole(string|array $roles): bool

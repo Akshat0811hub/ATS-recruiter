@@ -1,7 +1,7 @@
 @extends('layouts.app')
-@section('title', 'Roles & Granular Permissions')
-@section('page_title', 'Role-Based Access Control (RBAC) & Permissions Matrix')
-@section('page_subtitle', 'Server-side enforced permissions for Super Admin, Manager, Team Leader, Recruiter, and Client HR')
+@section('title', 'Roles & permissions')
+@section('page_title', 'Roles & permissions')
+@section('page_subtitle', 'Choose what each role can view and manage.')
 
 @section('content')
 <div class="space-y-6 text-xs">

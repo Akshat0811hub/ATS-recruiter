@@ -7,6 +7,7 @@ use App\Models\CandidateApplication;
 use App\Models\Client;
 use App\Models\ClientSubmission;
 use App\Models\InterviewRecord;
+use App\Models\JobAssignment;
 use App\Models\JobRequirement;
 use App\Models\JoiningRecord;
 use App\Models\Role;
@@ -295,6 +296,21 @@ class RecruitmentLifecycleTest extends TestCase
             'openings_count' => 1,
             'location' => 'Pune',
             'interview_rounds_count' => 3,
+        ]);
+
+        JobAssignment::create([
+            'job_requirement_id' => $jobB->id,
+            'recruiter_id' => $this->recruiter1->id,
+            'assigned_by' => $this->superAdmin->id,
+            'is_primary' => true,
+            'status' => 'active',
+        ]);
+        JobAssignment::create([
+            'job_requirement_id' => $jobB->id,
+            'recruiter_id' => $this->recruiter2->id,
+            'assigned_by' => $this->superAdmin->id,
+            'is_primary' => false,
+            'status' => 'active',
         ]);
 
         $cand = Candidate::create([

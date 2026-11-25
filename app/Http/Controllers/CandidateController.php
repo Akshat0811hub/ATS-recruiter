@@ -14,7 +14,9 @@ use App\Models\User;
 use App\Services\AuditService;
 use App\Services\CandidateDuplicateService;
 use App\Services\ExportImportService;
+use App\Services\RecruitmentAccess;
 use App\Services\StorageManagementService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -27,14 +29,13 @@ class CandidateController extends Controller
         private readonly ExportImportService $exportImportService
     ) {}
 
-    public function index(Request $request)
+    private function filteredCandidatesQuery(Request $request): Builder
     {
-        $query = Candidate::with(['assignedRecruiter', 'skills', 'primaryResume.storageRecord', 'applications.jobRequirement'])
-            ->withCount(['applications', 'callLogs', 'clientSubmissions']);
+        $query = RecruitmentAccess::query(Candidate::class);
 
-        if ($search = $request->query('search')) {
+        if ($search = trim((string) $request->query('search', ''))) {
             $normPhone = Candidate::normalizePhone($search);
-            $query->where(function ($q) use ($search, $normPhone) {
+            $query->where(function (Builder $q) use ($search, $normPhone) {
                 $q->where('full_name', 'like', "%{$search}%")
                     ->orWhere('candidate_code', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%")
@@ -47,22 +48,41 @@ class CandidateController extends Controller
                 }
             });
         }
-        if ($location = $request->query('location')) {
+        if ($location = trim((string) $request->query('location', ''))) {
             $query->where('current_location', 'like', "%{$location}%");
         }
         if ($recruiterId = $request->query('recruiter_id')) {
-            $query->where('assigned_recruiter_id', $recruiterId);
+            $query->where('assigned_recruiter_id', (int) $recruiterId);
         }
         if ($stage = $request->query('stage')) {
             $query->where('current_stage', $stage);
         }
-        if ($maxNotice = $request->query('max_notice_days')) {
-            $query->where('notice_period_days', '<=', (int) $maxNotice);
+        if ($request->filled('max_notice_days')) {
+            $query->whereNotNull('notice_period_days')
+                ->where('notice_period_days', '<=', (int) $request->query('max_notice_days'));
         }
 
-        $candidates = $query->orderByDesc('id')->paginate(25)->withQueryString();
-        $recruiters = User::whereHas('role', fn ($q) => $q->whereIn('slug', ['recruiter', 'team_leader', 'manager']))->where('is_active', true)->get();
-        $activeJobs = JobRequirement::with('client')->whereNotIn('status', ['successfully_closed', 'cancelled'])->orderByDesc('id')->get();
+        return $query;
+    }
+
+    public function index(Request $request)
+    {
+        $candidates = $this->filteredCandidatesQuery($request)
+            ->with(['assignedRecruiter', 'skills', 'primaryResume.storageRecord', 'applications' => fn ($q) => RecruitmentAccess::scope($q)->with('jobRequirement')])
+            ->withCount(['applications', 'callLogs', 'clientSubmissions'])
+            ->orderByDesc('id')
+            ->paginate(25)
+            ->withQueryString();
+
+        $recruiters = RecruitmentAccess::query(User::class)
+            ->whereHas('role', fn ($q) => $q->whereIn('slug', ['recruiter', 'team_leader', 'manager']))
+            ->where('is_active', true)
+            ->get();
+        $activeJobs = RecruitmentAccess::query(JobRequirement::class)
+            ->with('client')
+            ->whereNotIn('status', ['successfully_closed', 'cancelled'])
+            ->orderByDesc('id')
+            ->get();
         $sources = SystemSetting::getValue('candidate_sources', ['Direct Sourcing', 'Naukri', 'LinkedIn Recruiter', 'Employee Referral']);
 
         return view('candidates.index', compact('candidates', 'recruiters', 'activeJobs', 'sources'));
@@ -76,7 +96,7 @@ class CandidateController extends Controller
             $request->input('alternate_number'),
             $request->input('resume_checksum'),
             $request->input('exclude_id') ? (int) $request->input('exclude_id') : null
-        );
+        )->filter(fn (Candidate $candidate) => RecruitmentAccess::query(Candidate::class)->whereKey($candidate->id)->exists())->values();
 
         return response()->json([
             'has_duplicates' => $duplicates->isNotEmpty(),
@@ -98,7 +118,7 @@ class CandidateController extends Controller
     {
         $data = $request->validate([
             'full_name' => ['required', 'string', 'max:180'],
-            'mobile_number' => ['required', 'string', 'max:40'],
+            'mobile_number' => ['required', 'string', 'min:7', 'max:40'],
             'alternate_number' => ['nullable', 'string', 'max:40'],
             'email' => ['nullable', 'email', 'max:180'],
             'current_location' => ['nullable', 'string', 'max:150'],
@@ -126,9 +146,22 @@ class CandidateController extends Controller
             'next_follow_up_at' => ['nullable', 'date'],
             'availability_status' => ['nullable', 'string', 'max:60'],
             'remarks' => ['nullable', 'string'],
-            'resume_file' => ['nullable', 'file', 'max:10240'],
+            'resume_file' => ['nullable', 'file', 'mimes:pdf,doc,docx,rtf,txt', 'max:10240'],
             'job_requirement_id' => ['nullable', 'exists:job_requirements,id'],
             'confirm_duplicate_override' => ['nullable', 'boolean'],
+        ], [
+            'full_name.required' => 'Enter the candidate\'s full name.',
+            'mobile_number.required' => 'Enter a mobile number so recruiters can reach the candidate.',
+            'mobile_number.min' => 'Enter a valid mobile number with at least 7 digits.',
+            'email.email' => 'Enter a valid email address (for example, name@company.com).',
+            'total_experience.min' => 'Total experience cannot be negative.',
+            'relevant_experience.min' => 'Relevant experience cannot be negative.',
+            'notice_period_days.min' => 'Notice period days cannot be negative.',
+            'current_ctc.min' => 'Current annual CTC cannot be negative.',
+            'expected_ctc.min' => 'Expected annual CTC cannot be negative.',
+            'resume_file.mimes' => 'Upload the resume as a PDF, DOC, DOCX, RTF, or TXT file.',
+            'resume_file.max' => 'The resume file must be 10 MB or smaller.',
+            'job_requirement_id.exists' => 'Select an active job requirement from your workspace.',
         ]);
 
         $resumeChecksum = null;
@@ -147,13 +180,14 @@ class CandidateController extends Controller
             $resumeChecksum
         );
 
-        if ($duplicates->isNotEmpty() && ! $request->boolean('confirm_duplicate_override')) {
-            $firstMatch = $duplicates->first();
-            $reasons = implode(', ', $firstMatch->getAttribute('duplicate_reasons') ?? ['Contact Match']);
+        if ($request->boolean('confirm_duplicate_override')) {
+            abort_unless(Auth::user()->hasPermission('candidates.merge'), 403, 'Ask an administrator to review duplicate records.');
+        }
 
+        if ($duplicates->isNotEmpty() && ! $request->boolean('confirm_duplicate_override')) {
             return back()
                 ->withInput()
-                ->with('duplicate_warning', "Potential duplicate candidate detected: {$firstMatch->full_name} ({$firstMatch->candidate_code}) via [{$reasons}]. Please review the existing master profile or confirm override.");
+                ->with('duplicate_warning', 'A matching candidate already exists. Review the existing profile or ask your manager before adding another record.');
         }
 
         return DB::transaction(function () use ($request, $data, $resumeChecksum) {
@@ -161,24 +195,28 @@ class CandidateController extends Controller
                 ? array_values(array_filter(array_map('trim', explode(',', $data['tags_csv']))))
                 : [];
 
+            $consentStatus = $data['consent_status'] ?? 'pending';
+            $totalExp = isset($data['total_experience']) && $data['total_experience'] !== null ? (float) $data['total_experience'] : 0.0;
+            $relevantExp = isset($data['relevant_experience']) && $data['relevant_experience'] !== null ? (float) $data['relevant_experience'] : $totalExp;
+
             $candidate = Candidate::create([
                 'full_name' => $data['full_name'],
                 'mobile_number' => $data['mobile_number'],
                 'alternate_number' => $data['alternate_number'] ?? null,
                 'email' => $data['email'] ?? null,
-                'current_location' => $data['current_location'] ?? 'Mumbai',
-                'preferred_location' => $data['preferred_location'] ?? ($data['current_location'] ?? 'Mumbai'),
+                'current_location' => $data['current_location'] ?? null,
+                'preferred_location' => $data['preferred_location'] ?? null,
                 'country' => $data['country'] ?? 'India',
                 'current_employer' => $data['current_employer'] ?? null,
                 'current_designation' => $data['current_designation'] ?? null,
-                'total_experience' => $data['total_experience'] ?? 0,
-                'relevant_experience' => $data['relevant_experience'] ?? ($data['total_experience'] ?? 0),
+                'total_experience' => $totalExp,
+                'relevant_experience' => $relevantExp,
                 'qualifications' => $data['qualifications'] ?? null,
                 'industry' => $data['industry'] ?? null,
                 'current_ctc' => $data['current_ctc'] ?? null,
                 'expected_ctc' => $data['expected_ctc'] ?? null,
                 'currency' => $data['currency'] ?? 'INR',
-                'notice_period_days' => $data['notice_period_days'] ?? 30,
+                'notice_period_days' => array_key_exists('notice_period_days', $data) && $data['notice_period_days'] !== null ? (int) $data['notice_period_days'] : null,
                 'is_serving_notice' => $request->boolean('is_serving_notice'),
                 'last_working_date' => $data['last_working_date'] ?? null,
                 'reason_for_change' => $data['reason_for_change'] ?? null,
@@ -189,8 +227,8 @@ class CandidateController extends Controller
                 'created_by' => Auth::id(),
                 'tags' => $tags,
                 'primary_resume_checksum' => $resumeChecksum,
-                'consent_status' => $data['consent_status'] ?? 'granted',
-                'consent_recorded_at' => now(),
+                'consent_status' => $consentStatus,
+                'consent_recorded_at' => $consentStatus === 'granted' ? now() : null,
                 'next_follow_up_at' => $data['next_follow_up_at'] ?? null,
                 'availability_status' => $data['availability_status'] ?? 'Active / Exploring',
                 'remarks' => $data['remarks'] ?? null,
@@ -232,7 +270,7 @@ class CandidateController extends Controller
             }
 
             if (! empty($data['job_requirement_id'])) {
-                $job = JobRequirement::findOrFail($data['job_requirement_id']);
+                $job = RecruitmentAccess::query(JobRequirement::class)->findOrFail($data['job_requirement_id']);
                 CandidateApplication::firstOrCreate(
                     [
                         'candidate_id' => $candidate->id,
@@ -275,17 +313,13 @@ class CandidateController extends Controller
             'resumeVersions.uploader',
             'documents.storageRecord',
             'notes.user',
-            'applications.jobRequirement.client',
-            'applications.recruiter',
-            'applications.latestScreening',
-            'callLogs.recruiter',
-            'callLogs.jobRequirement',
-            'clientSubmissions.jobRequirement',
-            'clientSubmissions.client',
-            'interviewRecords.jobRequirement',
-            'offers.jobRequirement',
-            'joiningRecords.jobRequirement',
-            'tasks.assignee',
+            'applications' => fn ($q) => RecruitmentAccess::scope($q)->with(['jobRequirement.client', 'recruiter', 'latestScreening']),
+            'callLogs' => fn ($q) => RecruitmentAccess::scope($q)->with(['recruiter', 'jobRequirement']),
+            'clientSubmissions' => fn ($q) => RecruitmentAccess::scope($q)->with(['jobRequirement', 'client']),
+            'interviewRecords' => fn ($q) => RecruitmentAccess::scope($q)->with('jobRequirement'),
+            'offers' => fn ($q) => RecruitmentAccess::scope($q)->with('jobRequirement'),
+            'joiningRecords' => fn ($q) => RecruitmentAccess::scope($q)->with('jobRequirement'),
+            'tasks' => fn ($q) => RecruitmentAccess::scope($q)->with('assignee'),
             'activityLogs.user',
         ]);
 
@@ -295,9 +329,9 @@ class CandidateController extends Controller
             $candidate->alternate_number,
             $candidate->primary_resume_checksum,
             $candidate->id
-        );
+        )->filter(fn (Candidate $duplicate) => RecruitmentAccess::query(Candidate::class)->whereKey($duplicate->id)->exists());
 
-        $activeJobs = JobRequirement::with('client')
+        $activeJobs = RecruitmentAccess::query(JobRequirement::class)->with('client')
             ->whereNotIn('status', ['successfully_closed', 'cancelled'])
             ->orderByDesc('id')
             ->get();
@@ -307,10 +341,17 @@ class CandidateController extends Controller
 
     public function preview(Candidate $candidate)
     {
-        $candidate->load(['assignedRecruiter', 'skills', 'primaryResume', 'applications.jobRequirement.client', 'callLogs' => fn ($q) => $q->limit(3)]);
+        $candidate->load([
+            'assignedRecruiter',
+            'skills',
+            'primaryResume',
+            'applications' => fn ($q) => RecruitmentAccess::scope($q)->with('jobRequirement.client'),
+            'callLogs' => fn ($q) => RecruitmentAccess::scope($q)->limit(3),
+        ]);
 
         return response()->json([
             'id' => $candidate->id,
+            'profile_url' => route('candidates.show', $candidate),
             'candidate_code' => $candidate->candidate_code,
             'full_name' => $candidate->full_name,
             'mobile_number' => $candidate->mobile_number,
@@ -348,9 +389,10 @@ class CandidateController extends Controller
     public function update(Request $request, Candidate $candidate)
     {
         $user = Auth::user();
-        // Enforce recruiter authorisation check: a recruiter cannot modify another recruiter's restricted candidate unless assigned to one of their jobs or admin/manager/TL
         if ($user->isRecruiter() && $candidate->assigned_recruiter_id && (int) $candidate->assigned_recruiter_id !== (int) $user->id) {
-            $worksOnSameCandidate = $candidate->applications()->where('recruiter_id', $user->id)->exists();
+            $worksOnSameCandidate = RecruitmentAccess::query(CandidateApplication::class)
+                ->where('candidate_id', $candidate->id)
+                ->exists();
             if (! $worksOnSameCandidate) {
                 abort(403, 'Unauthorised: This candidate profile is owned by another recruiter.');
             }
@@ -358,30 +400,52 @@ class CandidateController extends Controller
 
         $data = $request->validate([
             'full_name' => ['required', 'string', 'max:180'],
-            'mobile_number' => ['required', 'string', 'max:40'],
+            'mobile_number' => ['required', 'string', 'min:7', 'max:40'],
             'alternate_number' => ['nullable', 'string', 'max:40'],
             'email' => ['nullable', 'email', 'max:180'],
             'current_location' => ['nullable', 'string', 'max:150'],
             'preferred_location' => ['nullable', 'string', 'max:180'],
             'current_employer' => ['nullable', 'string', 'max:180'],
             'current_designation' => ['nullable', 'string', 'max:160'],
-            'total_experience' => ['nullable', 'numeric', 'min:0'],
-            'relevant_experience' => ['nullable', 'numeric', 'min:0'],
+            'total_experience' => ['nullable', 'numeric', 'min:0', 'max:60'],
+            'relevant_experience' => ['nullable', 'numeric', 'min:0', 'max:60'],
             'qualifications' => ['nullable', 'string', 'max:255'],
             'current_ctc' => ['nullable', 'numeric', 'min:0'],
             'expected_ctc' => ['nullable', 'numeric', 'min:0'],
-            'notice_period_days' => ['nullable', 'integer', 'min:0'],
+            'notice_period_days' => ['nullable', 'integer', 'min:0', 'max:365'],
             'is_serving_notice' => ['nullable', 'boolean'],
             'consent_status' => ['nullable', 'in:granted,pending,withdrawn,erasure_requested'],
             'availability_status' => ['nullable', 'string', 'max:60'],
             'remarks' => ['nullable', 'string'],
             'skills_csv' => ['nullable', 'string'],
+        ], [
+            'full_name.required' => 'Enter the candidate\'s full name.',
+            'mobile_number.required' => 'Enter a mobile number for the candidate.',
+            'email.email' => 'Enter a valid email address.',
         ]);
 
-        $old = $candidate->only(['full_name', 'mobile_number', 'email', 'current_ctc', 'expected_ctc', 'notice_period_days']);
-        $candidate->update(collect($data)->except('skills_csv')->toArray());
+        $old = $candidate->only(['full_name', 'mobile_number', 'email', 'current_ctc', 'expected_ctc', 'notice_period_days', 'consent_status']);
 
-        if (isset($data['skills_csv'])) {
+        $payload = collect($data)->except('skills_csv')->toArray();
+        if (array_key_exists('total_experience', $payload) && $payload['total_experience'] === null) {
+            $payload['total_experience'] = 0.0;
+        }
+        if (array_key_exists('relevant_experience', $payload) && $payload['relevant_experience'] === null) {
+            $payload['relevant_experience'] = $payload['total_experience'] ?? $candidate->total_experience ?? 0.0;
+        }
+        if (array_key_exists('consent_status', $payload) && $payload['consent_status'] === null) {
+            $payload['consent_status'] = $candidate->consent_status ?: 'pending';
+        }
+        if (array_key_exists('availability_status', $payload) && $payload['availability_status'] === null) {
+            $payload['availability_status'] = $candidate->availability_status ?: 'Active / Exploring';
+        }
+        if ($request->has('is_serving_notice')) {
+            $payload['is_serving_notice'] = $request->boolean('is_serving_notice');
+        }
+
+        $candidate->update($payload);
+
+        if (array_key_exists('skills_csv', $data)) {
             $skills = array_unique(array_filter(array_map('trim', explode(',', (string) $data['skills_csv']))));
             $candidate->skills()->delete();
             foreach ($skills as $sk) {
@@ -402,8 +466,12 @@ class CandidateController extends Controller
     public function uploadResume(Request $request, Candidate $candidate)
     {
         $request->validate([
-            'resume_file' => ['required', 'file', 'max:10240'],
+            'resume_file' => ['required', 'file', 'mimes:pdf,doc,docx,rtf,txt', 'max:10240'],
             'notes' => ['nullable', 'string', 'max:255'],
+        ], [
+            'resume_file.required' => 'Choose a resume file before uploading.',
+            'resume_file.mimes' => 'Upload the resume as a PDF, DOC, DOCX, RTF, or TXT file.',
+            'resume_file.max' => 'The resume file must be 10 MB or smaller.',
         ]);
 
         return DB::transaction(function () use ($request, $candidate) {
@@ -453,6 +521,8 @@ class CandidateController extends Controller
             'note' => ['required', 'string', 'max:3000'],
             'job_requirement_id' => ['nullable', 'exists:job_requirements,id'],
             'is_client_visible' => ['nullable', 'boolean'],
+        ], [
+            'note.required' => 'Write a note before saving.',
         ]);
 
         $isClientVisible = $request->boolean('is_client_visible', false);
@@ -488,7 +558,7 @@ class CandidateController extends Controller
             return back()->withErrors(['duplicate_candidate_id' => 'Cannot merge a candidate profile into itself.']);
         }
 
-        $duplicate = Candidate::findOrFail($data['duplicate_candidate_id']);
+        $duplicate = RecruitmentAccess::query(Candidate::class)->findOrFail($data['duplicate_candidate_id']);
         $this->duplicateService->mergeCandidates(
             $candidate,
             $duplicate,
@@ -504,13 +574,13 @@ class CandidateController extends Controller
         $headers = [
             'full_name', 'mobile_number', 'email', 'current_location', 'preferred_location',
             'current_employer', 'current_designation', 'total_experience', 'relevant_experience',
-            'current_ctc', 'expected_ctc', 'notice_period_days', 'skills', 'source', 'remarks',
+            'current_ctc', 'expected_ctc', 'notice_period_days', 'skills', 'source', 'consent_status', 'remarks',
         ];
         $sampleRows = [
             [
-                'Karan Malhotra', '+91 9820199001', 'karan.malhotra@example.com', 'Mumbai', 'Mumbai',
+                'Karan Malhotra', '9820199001', 'karan.malhotra@example.com', 'Mumbai', 'Mumbai',
                 'TechCore India', 'Senior Software Engineer', '6.5', '5.5',
-                '1800000', '2400000', '30', 'PHP, Laravel, MySQL, AWS', 'Naukri', 'Strong backend developer',
+                '1800000', '2400000', '30', 'PHP, Laravel, MySQL, AWS', 'Naukri', 'pending', 'Strong backend developer',
             ],
         ];
 
@@ -525,22 +595,37 @@ class CandidateController extends Controller
     public function import(Request $request)
     {
         $request->validate([
-            'import_file' => ['required', 'file', 'max:5120'],
+            'import_file' => ['required', 'file', 'extensions:csv,txt', 'max:5120'],
+        ], [
+            'import_file.required' => 'Select a CSV file before starting the import.',
+            'import_file.extensions' => 'Upload a valid .csv or .txt file.',
+            'import_file.max' => 'The CSV file must be 5 MB or smaller.',
         ]);
 
         $file = $request->file('import_file');
         $path = $file->getRealPath();
         $rows = [];
+        $headers = null;
 
         if (($handle = fopen($path, 'r')) !== false) {
-            $headers = null;
-            while (($data = fgetcsv($handle, 4096, ',')) !== false) {
+            $firstLine = fgets($handle);
+            rewind($handle);
+            $delimiter = ($firstLine !== false && substr_count($firstLine, ';') > substr_count($firstLine, ',')) ? ';' : ',';
+
+            while (($data = fgetcsv($handle, 0, $delimiter, '"', '')) !== false) {
                 if (! $headers) {
-                    $headers = array_map(fn ($h) => strtolower(trim((string) $h)), $data);
+                    $headers = array_map(function ($h) {
+                        $cleaned = strtolower(trim(ltrim((string) $h, "\xEF\xBB\xBF")));
+
+                        return str_replace(' ', '_', $cleaned);
+                    }, $data);
 
                     continue;
                 }
                 if (count($data) === 1 && trim((string) $data[0]) === '') {
+                    continue;
+                }
+                if (count(array_filter($data, fn ($cell) => trim((string) $cell) !== '')) === 0) {
                     continue;
                 }
                 $rowAssoc = [];
@@ -552,7 +637,24 @@ class CandidateController extends Controller
             fclose($handle);
         }
 
+        $hasNameColumn = $headers && count(array_intersect(['full_name', 'candidate_name', 'name'], $headers)) > 0;
+        $hasPhoneColumn = $headers && count(array_intersect(['mobile_number', 'mobile', 'phone', 'phone_number'], $headers)) > 0;
+
+        if (! $hasNameColumn || ! $hasPhoneColumn) {
+            return back()->withErrors([
+                'import_file' => 'The CSV file must include full_name and mobile_number columns. Download the CSV template to see the expected format.',
+            ])->withInput();
+        }
+
+        if (empty($rows)) {
+            return back()->withErrors([
+                'import_file' => 'The selected CSV file does not contain any candidate rows to import.',
+            ])->withInput();
+        }
+
         $log = $this->exportImportService->importCandidatesFromRows($rows, $file->getClientOriginalName());
+
+        session()->flash('import_errors', $log->error_details ?? []);
 
         return back()->with(
             'success',
@@ -562,13 +664,17 @@ class CandidateController extends Controller
 
     public function export(Request $request)
     {
-        $candidates = Candidate::with(['assignedRecruiter', 'skills'])->orderByDesc('id')->limit(5000)->get();
+        $candidates = $this->filteredCandidatesQuery($request)
+            ->with(['assignedRecruiter', 'skills'])
+            ->orderByDesc('id')
+            ->limit(5000)
+            ->get();
 
         $headers = [
             'Candidate ID', 'Full Name', 'Mobile Number', 'Email', 'Current Location',
             'Current Employer', 'Current Designation', 'Total Experience (Yrs)',
             'Current CTC', 'Expected CTC', 'Currency', 'Notice Period (Days)',
-            'Skills', 'Source', 'Current Stage', 'Assigned Recruiter',
+            'Skills', 'Source', 'Consent Status', 'Current Stage', 'Assigned Recruiter',
         ];
 
         $rows = $candidates->map(fn (Candidate $c) => [
@@ -586,6 +692,7 @@ class CandidateController extends Controller
             $c->notice_period_days,
             $c->skills->pluck('skill_name')->implode(', '),
             $c->source,
+            $c->consent_status,
             $c->current_stage,
             $c->assignedRecruiter?->name,
         ]);

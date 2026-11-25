@@ -1,7 +1,7 @@
 @extends('layouts.app')
-@section('title', 'Configurable Business & Recruitment Settings')
-@section('page_title', 'Configurable Business, Schedule & Privacy Settings')
-@section('page_subtitle', 'Company identity, working schedule (Mon–Sat 10:00–18:30 IST), replacement policy, and DPDP data retention')
+@section('title', 'Settings')
+@section('page_title', 'Settings')
+@section('page_subtitle', 'Manage company details and recruitment preferences.')
 
 @section('content')
 <div class="max-w-4xl bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 text-xs">

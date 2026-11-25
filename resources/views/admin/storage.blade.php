@@ -1,7 +1,7 @@
 @extends('layouts.app')
-@section('title', 'Storage Management & Quota Monitor')
-@section('page_title', 'Hostinger 20 GB NVMe Storage Management & Private Vault Ledger')
-@section('page_subtitle', 'Real-time storage breakdown, SHA-256 deduplication, and 70% / 85% / 95% threshold protection')
+@section('title', 'Document storage')
+@section('page_title', 'Document storage')
+@section('page_subtitle', 'Review file usage and available space.')
 
 @section('content')
 @php

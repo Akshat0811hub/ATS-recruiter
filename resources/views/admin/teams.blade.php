@@ -1,7 +1,7 @@
 @extends('layouts.app')
-@section('title', 'Team Management')
-@section('page_title', 'Recruitment Team & Practice Management')
-@section('page_subtitle', 'Structure recruitment squads, assign managers and team leaders, and define daily sourcing and submission targets')
+@section('title', 'Teams')
+@section('page_title', 'Teams')
+@section('page_subtitle', 'Organise recruiters, assign team leaders and set daily targets.')
 
 @section('content')
 <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 text-xs">

@@ -1,7 +1,7 @@
 @extends('layouts.app')
-@section('title', 'Encrypted Backups & Data Restoration')
-@section('page_title', 'Encrypted Daily Backups & Integrity-Verified Restoration')
-@section('page_subtitle', 'AES-256 encrypted database and private document snapshots with SHA-256 checksum verification')
+@section('title', 'Backups')
+@section('page_title', 'Backups')
+@section('page_subtitle', 'Check backup history and recovery readiness.')
 
 @section('content')
 @if(!$externalConfigured)

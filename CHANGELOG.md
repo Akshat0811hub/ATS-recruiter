@@ -2,6 +2,16 @@
 
 All notable changes to **OrbiTouch ATS** (OrbiTouch HR & Recruitment Consultants / Orbitouch Outsourcing Private Limited) are documented in this file.
 
+## [1.1.0] - Workspace Access Hardening, Reports/CSV Reliability, Verified 2FA & Light-Theme UI Polish
+### Fixed & Improved
+- **Candidate Optional Fields & Consent Default:** Added migration `0001_01_01_000009` making `notice_period_days`, `total_experience`, `relevant_experience`, `availability_status`, and submission experience/notice snapshot columns nullable; updated candidate creation, editing, and CSV import to default `consent_status` to `pending` (recording `consent_recorded_at` only when explicitly `granted`).
+- **Consistent Report & CSV Export Filtering:** Unified filter validation and dataset queries (`from_date`, `to_date`, `recruiter_id`, `client_id`, `job_id`, `status`) across all 18 operational reports for both the web UI (`/reports`) and formula-safe CSV exports (`/reports/export`).
+- **Idempotent Recurring Tasks:** Wrapped task completion in a `DB::transaction` with `lockForUpdate()` and `auto_trigger_key` deduplication so completing a recurring task multiple times or concurrently never generates duplicate follow-up tasks.
+- **Strict Role & Tenant Data Isolation:** Enforced `RecruitmentAccess` query and eager-loading relation scopes plus `AuthorizeRecruitmentAccess` middleware across recruiters, teams, and managers; tightened `DocumentController` so clients can only download exact resume versions and client-visible documents explicitly shared with their organisation.
+- **CSV Import/Export & Form Validation:** Added UTF-8 BOM stripping, `,`/`;` delimiter detection, formula-escape apostrophe unwrapping (`'+91...`), numeric column validation, human-readable error messages, and active-filter synchronization on candidate CSV export.
+- **Verified Two-Factor Authentication Setup:** Required 6-digit TOTP code verification (`/profile/two-factor/confirm`) against a session-scoped pending setup secret before enabling 2FA; removed live TOTP previews and persistent secret/recovery code exposure from `/profile`, displaying recovery codes once upon confirmation or password-verified regeneration.
+- **Light-Theme Workspace & Mobile/Desktop UI Polish:** Refined responsive sidebar collapse/drawer behavior, `Ctrl+K` global search badges, inline modal validation alerts, null notice-period formatting (`Notice N/A` / `Not provided`), and Candidate 360 inline profile editing.
+
 ## [1.0.0] - Complete Enterprise Recruitment CRM & ATS Release (Phases 1–9)
 ### Added
 - **Authentication, 2FA & RBAC (`Phase 1`):** Email/password authentication, login rate limiting, 5-attempt lockout, login activity history, TOTP Two-Factor Authentication + recovery codes, session revocation, controlled user invitations, 5 core roles (`super_admin`, `manager`, `team_leader`, `recruiter`, `client`) with 34 server-enforced permissions, team management, and configurable business settings (`Mon–Sat 10:00 AM – 6:30 PM IST`).

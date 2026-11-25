@@ -4,7 +4,7 @@
 @section('page_subtitle', 'Isolated Client Workspace (' . $client->client_code . ') • Submit Requirements, Shortlist Profiles & Track Interviews')
 
 @section('content')
-<div x-data="{ showNewReqModal: false }">
+<div x-data="{ showNewReqModal: {{ $errors->any() && old('title') !== null ? 'true' : 'false' }} }">
     <!-- Client KPI Summary -->
     <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-6 text-xs">
         <div class="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
@@ -77,9 +77,9 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3 font-medium">{{ $sub->jobRequirement?->title }} ({{ $sub->jobRequirement?->job_code }})</td>
-                            <td class="px-4 py-3 text-right">
-                                <div class="font-semibold">{{ number_format((float)$sub->snapshot_expected_ctc) }} {{ $sub->snapshot_currency }}</div>
-                                <div class="text-[11px] text-slate-500">{{ $sub->snapshot_notice_period_days }}d notice</div>
+                            <td class="px-4 py-3 text-right whitespace-nowrap">
+                                <div class="font-semibold">{{ $sub->snapshot_expected_ctc ? number_format((float)$sub->snapshot_expected_ctc).' '.$sub->snapshot_currency : '—' }}</div>
+                                <div class="text-[11px] text-slate-500">{{ $sub->snapshot_notice_period_days !== null ? $sub->snapshot_notice_period_days.'d notice' : 'Notice N/A' }}</div>
                             </td>
                             <td class="px-4 py-3 max-w-xs text-slate-600 dark:text-slate-300">{{ $sub->screening_summary }}</td>
                             <td class="px-4 py-3">
@@ -160,6 +160,12 @@
             </div>
             <form method="POST" action="{{ route('portal.requirements.store') }}" enctype="multipart/form-data" class="mt-4 space-y-3.5">
                 @csrf
+                @if($errors->any())
+                    <div class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-800">
+                        <p class="font-semibold">Please review the requirement details:</p>
+                        <ul class="mt-1 list-inside list-disc">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+                    </div>
+                @endif
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div class="sm:col-span-2">
                         <label class="block font-semibold mb-1">Job Title *</label>

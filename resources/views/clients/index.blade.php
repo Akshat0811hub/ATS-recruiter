@@ -1,10 +1,10 @@
 @extends('layouts.app')
-@section('title', 'Client Management')
-@section('page_title', 'Centralised Client Management')
-@section('page_subtitle', 'Client organisations, HR representatives, commercial fee terms, replacement policies, and agreements')
+@section('title', 'Clients')
+@section('page_title', 'Clients')
+@section('page_subtitle', 'Manage companies, HR contacts and hiring requirements.')
 
 @section('content')
-<div x-data="{ showCreateModal: false }">
+<div x-data="{ showCreateModal: {{ request()->boolean('create') || $errors->any() ? 'true' : 'false' }} }">
     <!-- Filter & Action Toolbar -->
     <div class="mb-5 flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
         <form method="GET" action="{{ route('clients.index') }}" class="flex flex-wrap items-center gap-2.5">
@@ -84,7 +84,7 @@
 
     <!-- Create Client Modal -->
     @if(auth()->user()->hasRole(['super_admin', 'manager']))
-    <div x-show="showCreateModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 overflow-y-auto">
+    <div x-show="showCreateModal" x-cloak role="dialog" aria-modal="true" aria-label="clients form" @keydown.escape.window="showCreateModal = false" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 overflow-y-auto">
         <div @click.away="showCreateModal = false" class="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 max-h-[90vh] overflow-y-auto">
             <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
                 <h3 class="text-sm font-bold text-slate-900 dark:text-white">Create New Client Organisation</h3>
@@ -92,6 +92,12 @@
             </div>
             <form method="POST" action="{{ route('clients.store') }}" enctype="multipart/form-data" class="mt-4 space-y-4 text-xs">
                 @csrf
+                @if($errors->any())
+                    <div class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-800">
+                        <p class="font-semibold">Please check the client details below:</p>
+                        <ul class="mt-1 list-inside list-disc">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+                    </div>
+                @endif
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                     <div class="sm:col-span-2">
                         <label class="block font-semibold mb-1">Company Name *</label>

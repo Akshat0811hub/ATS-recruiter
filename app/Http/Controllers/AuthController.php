@@ -261,14 +261,23 @@ class AuthController extends Controller
             : redirect()->route('dashboard');
     }
 
-    public function profile()
+    public function profile(Request $request)
     {
         $user = Auth::user()->load(['role', 'team', 'loginActivities' => fn ($q) => $q->latest('occurred_at')->limit(15)]);
-        $currentTotpPreview = $user->two_factor_secret
-            ? $this->twoFactorService->getCurrentTotpCode($user->two_factor_secret)
+        $pendingTwoFactorSecret = ! $user->two_factor_enabled
+            ? $request->session()->get('two_factor_setup_secret')
             : null;
+        $pendingOtpAuthUri = $pendingTwoFactorSecret
+            ? $this->twoFactorService->buildOtpAuthUri($user->email, $pendingTwoFactorSecret)
+            : null;
+        $oneTimeRecoveryCodes = $request->session()->get('two_factor_recovery_codes_once');
 
-        return view('auth.profile', compact('user', 'currentTotpPreview'));
+        return view('auth.profile', compact(
+            'user',
+            'pendingTwoFactorSecret',
+            'pendingOtpAuthUri',
+            'oneTimeRecoveryCodes'
+        ));
     }
 
     public function updateProfile(Request $request)
@@ -309,22 +318,31 @@ class AuthController extends Controller
         $user = Auth::user();
 
         if (! $user->two_factor_enabled) {
-            $secret = $this->twoFactorService->generateSecret();
-            $recoveryCodes = $this->twoFactorService->generateRecoveryCodes();
-            $user->update([
-                'two_factor_enabled' => true,
-                'two_factor_secret' => $secret,
-                'two_factor_recovery_codes' => json_encode($recoveryCodes),
-                'two_factor_confirmed_at' => now(),
-            ]);
-            $request->session()->put('two_factor_verified', true);
-            AuditService::log('auth.2fa_enabled', $user, $user->id);
+            if ($request->boolean('cancel')) {
+                $request->session()->forget('two_factor_setup_secret');
 
-            return back()->with('success', 'Two-Factor Authentication enabled. Store your recovery codes securely.');
+                return back()->with('status', 'Two-Factor Authentication setup cancelled.');
+            }
+
+            $secret = $this->twoFactorService->generateSecret();
+            $request->session()->put('two_factor_setup_secret', $secret);
+            AuditService::log('auth.2fa_setup_started', $user, $user->id);
+
+            return back()->with('status', 'Add the setup key below to your authenticator app, then enter the 6-digit verification code to enable 2FA.');
         }
 
         if ($user->isSuperAdmin() && app()->environment('production') && filter_var(env('ATS_REQUIRE_SUPER_ADMIN_2FA', true), FILTER_VALIDATE_BOOLEAN)) {
             return back()->withErrors(['two_factor' => 'Two-Factor Authentication is mandatory for Super Admin accounts in production.']);
+        }
+
+        $data = $request->validate([
+            'current_password' => ['required', 'string'],
+        ], [
+            'current_password.required' => 'Enter your current account password to disable Two-Factor Authentication.',
+        ]);
+
+        if (! Hash::check($data['current_password'], $user->password)) {
+            return back()->withErrors(['current_password' => 'The password entered to disable 2FA is incorrect.']);
         }
 
         $user->update([
@@ -333,9 +351,85 @@ class AuthController extends Controller
             'two_factor_recovery_codes' => null,
             'two_factor_confirmed_at' => null,
         ]);
+        $request->session()->forget(['two_factor_setup_secret', 'two_factor_recovery_codes_once']);
         AuditService::log('auth.2fa_disabled', $user, $user->id);
 
         return back()->with('success', 'Two-Factor Authentication has been disabled.');
+    }
+
+    public function confirmTwoFactor(Request $request)
+    {
+        $user = Auth::user();
+        $pendingSecret = (string) $request->session()->get('two_factor_setup_secret', '');
+
+        if ($user->two_factor_enabled) {
+            $request->session()->forget('two_factor_setup_secret');
+
+            return back()->with('status', 'Two-Factor Authentication is already active on your account.');
+        }
+
+        if ($pendingSecret === '') {
+            return back()->withErrors([
+                'two_factor' => 'Two-Factor Authentication setup has not been started or has expired. Click Set Up 2FA to generate a setup key.',
+            ]);
+        }
+
+        $data = $request->validate([
+            'code' => ['required', 'digits:6'],
+        ], [
+            'code.required' => 'Enter the 6-digit code from your authenticator app.',
+            'code.digits' => 'The authenticator verification code must be 6 digits.',
+        ]);
+
+        if (! $this->twoFactorService->verifySecretCode($pendingSecret, $data['code'])) {
+            return back()->withErrors([
+                'code' => 'Invalid or expired 6-digit authenticator code. Verify the setup key and try again.',
+            ]);
+        }
+
+        $recoveryCodes = $this->twoFactorService->generateRecoveryCodes();
+        $user->update([
+            'two_factor_enabled' => true,
+            'two_factor_secret' => $pendingSecret,
+            'two_factor_recovery_codes' => json_encode($recoveryCodes),
+            'two_factor_confirmed_at' => now(),
+        ]);
+
+        $request->session()->forget('two_factor_setup_secret');
+        $request->session()->put('two_factor_verified', true);
+        $request->session()->flash('two_factor_recovery_codes_once', $recoveryCodes);
+        AuditService::log('auth.2fa_enabled', $user, $user->id);
+
+        return back()->with('success', 'Two-Factor Authentication verified and enabled. Save your recovery codes below—they will not be shown again.');
+    }
+
+    public function regenerateRecoveryCodes(Request $request)
+    {
+        $user = Auth::user();
+
+        if (! $user->two_factor_enabled) {
+            return back()->withErrors(['two_factor' => 'Enable Two-Factor Authentication before generating recovery codes.']);
+        }
+
+        $data = $request->validate([
+            'current_password' => ['required', 'string'],
+        ], [
+            'current_password.required' => 'Enter your current password to regenerate recovery codes.',
+        ]);
+
+        if (! Hash::check($data['current_password'], $user->password)) {
+            return back()->withErrors(['current_password' => 'Current password is incorrect.']);
+        }
+
+        $recoveryCodes = $this->twoFactorService->generateRecoveryCodes();
+        $user->update([
+            'two_factor_recovery_codes' => json_encode($recoveryCodes),
+        ]);
+
+        $request->session()->flash('two_factor_recovery_codes_once', $recoveryCodes);
+        AuditService::log('auth.2fa_recovery_codes_regenerated', $user, $user->id);
+
+        return back()->with('success', 'New recovery codes generated. Previous recovery codes are no longer valid.');
     }
 
     public function revokeOtherSessions(Request $request)

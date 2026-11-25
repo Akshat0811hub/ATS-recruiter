@@ -16,10 +16,10 @@
             <div class="text-slate-600 dark:text-slate-300 mt-2 flex flex-wrap items-center gap-4">
                 <a href="tel:{{ $candidate->mobile_number }}" class="font-bold text-[#1E40AF] hover:underline">📞 {{ $candidate->mobile_number }} (Click-to-Call)</a>
                 @if($candidate->email)<span>✉️ {{ $candidate->email }}</span>@endif
-                <span>📍 {{ $candidate->current_location }} (Pref: {{ $candidate->preferred_location }})</span>
-                <span class="tabular-nums">💼 {{ $candidate->total_experience }} Yrs Exp ({{ $candidate->relevant_experience }} Relevant)</span>
-                <span class="tabular-nums">💰 CTC: {{ number_format((float)$candidate->current_ctc) }} → <strong>{{ number_format((float)$candidate->expected_ctc) }} {{ $candidate->currency }}</strong></span>
-                <span class="tabular-nums">⏱️ Notice: <strong>{{ $candidate->notice_period_days }} Days</strong></span>
+                <span>📍 {{ $candidate->current_location ?: 'Location N/A' }}@if($candidate->preferred_location) (Pref: {{ $candidate->preferred_location }})@endif</span>
+                <span class="tabular-nums">💼 {{ $candidate->total_experience ?? 0 }} Yrs Exp ({{ $candidate->relevant_experience ?? 0 }} Relevant)</span>
+                <span class="tabular-nums">💰 CTC: {{ $candidate->current_ctc ? number_format((float)$candidate->current_ctc) : '—' }} → <strong>{{ $candidate->expected_ctc ? number_format((float)$candidate->expected_ctc).' '.$candidate->currency : '—' }}</strong></span>
+                <span class="tabular-nums">⏱️ Notice: <strong>{{ $candidate->notice_period_days !== null ? $candidate->notice_period_days.' Days' : 'Not provided' }}</strong></span>
             </div>
         </div>
 
@@ -185,6 +185,84 @@
 
     <!-- Right Column: Edit Master Details, Versioned Resumes, Notes & Activity Timeline -->
     <div class="lg:col-span-5 space-y-6">
+        <!-- Edit Master Candidate Profile -->
+        <details class="bg-white rounded-xl border border-slate-200 p-5" @if($errors->any() && old('_form') === 'candidate_update') open @endif>
+            <summary class="text-sm font-bold text-slate-900 flex items-center justify-between">
+                <span>Edit Candidate Details & Consent</span>
+                <span class="text-xs font-medium text-blue-700">Expand</span>
+            </summary>
+            <form method="POST" action="{{ route('candidates.update', $candidate) }}" class="mt-4 space-y-3 pt-3 border-t border-slate-100">
+                @csrf
+                @method('PUT')
+                <input type="hidden" name="_form" value="candidate_update">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Full Name *</label>
+                        <input type="text" name="full_name" value="{{ old('full_name', $candidate->full_name) }}" required class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Mobile Number *</label>
+                        <input type="tel" name="mobile_number" value="{{ old('mobile_number', $candidate->mobile_number) }}" required class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Email</label>
+                        <input type="email" name="email" value="{{ old('email', $candidate->email) }}" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Current Location</label>
+                        <input type="text" name="current_location" value="{{ old('current_location', $candidate->current_location) }}" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Preferred Location</label>
+                        <input type="text" name="preferred_location" value="{{ old('preferred_location', $candidate->preferred_location) }}" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Current Role</label>
+                        <input type="text" name="current_designation" value="{{ old('current_designation', $candidate->current_designation) }}" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Current Employer</label>
+                        <input type="text" name="current_employer" value="{{ old('current_employer', $candidate->current_employer) }}" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Consent Status</label>
+                        <select name="consent_status" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                            @foreach(['pending' => 'Pending', 'granted' => 'Granted', 'withdrawn' => 'Withdrawn'] as $ck => $cl)
+                                <option value="{{ $ck }}" @selected(old('consent_status', $candidate->consent_status) === $ck)>{{ $cl }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Total Exp (Yrs)</label>
+                        <input type="number" step="0.1" min="0" name="total_experience" value="{{ old('total_experience', $candidate->total_experience) }}" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Relevant Exp (Yrs)</label>
+                        <input type="number" step="0.1" min="0" name="relevant_experience" value="{{ old('relevant_experience', $candidate->relevant_experience) }}" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Current CTC</label>
+                        <input type="number" min="0" name="current_ctc" value="{{ old('current_ctc', $candidate->current_ctc) }}" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Expected CTC</label>
+                        <input type="number" min="0" name="expected_ctc" value="{{ old('expected_ctc', $candidate->expected_ctc) }}" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Notice Period (Days)</label>
+                        <input type="number" min="0" name="notice_period_days" value="{{ old('notice_period_days', $candidate->notice_period_days) }}" placeholder="Optional" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Skills (CSV)</label>
+                        <input type="text" name="skills_csv" value="{{ old('skills_csv', $candidate->skills->pluck('skill_name')->implode(', ')) }}" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                </div>
+                <div class="flex justify-end pt-2">
+                    <button type="submit" class="px-4 py-1.5 rounded-lg bg-[#D3003B] text-white font-semibold">Save Profile Updates</button>
+                </div>
+            </form>
+        </details>
+
         <!-- Private Versioned Resume Vault -->
         <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
             <h2 class="text-sm font-bold text-slate-900 dark:text-white mb-3">Private Resume Version History ({{ $candidate->resumeVersions->count() }})</h2>

@@ -1,11 +1,13 @@
 @import 'tailwindcss';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 @source '../views/**/*.blade.php';
 
 @theme {
-    --font-sans: 'Instrument Sans', 'Inter', 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-sans: 'Inter', 'Segoe UI', ui-sans-serif, system-ui, -apple-system, sans-serif;
     --color-orbit-navy: #0B1528;
     --color-orbit-navy-light: #13223E;
     --color-orbit-blue: #1E40AF;
@@ -17,6 +19,7 @@
     body {
         font-feature-settings: "cv02", "cv03", "cv04", "cv11";
         -webkit-font-smoothing: antialiased;
+        color-scheme: light;
     }
 
     .tabular-nums {
@@ -35,4 +38,64 @@
 
 [x-cloak] {
     display: none !important;
+}
+
+@layer components {
+    .app-sidebar { @apply fixed inset-y-0 left-0 z-40 flex w-64 max-w-[85vw] flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:sticky lg:top-0 lg:h-dvh lg:max-w-none lg:translate-x-0; }
+    .nav-link { @apply flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900; }
+    .nav-link[aria-current="page"] { @apply bg-blue-50 text-blue-800; box-shadow: inset 3px 0 #2563eb; }
+    .nav-label { @apply truncate; }
+    .nav-heading { @apply px-3 pb-2 pt-5 text-xs font-semibold tracking-wider text-slate-500 uppercase; }
+    .panel { @apply rounded-xl border border-slate-200 bg-white; box-shadow: 0 2px 4px #0f172a03; }
+    .btn-primary { @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-800; }
+    .btn-secondary { @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50; }
+    .icon-button { @apply inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900; }
+    .field { @apply min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900; }
+    .metric { @apply flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5 transition-colors hover:border-blue-300; }
+    .metric-value { @apply text-3xl font-semibold tracking-tight text-slate-900 tabular-nums; }
+    .empty-state { @apply px-5 py-10 text-center text-sm text-slate-500; }
+    .dialog-backdrop { @apply fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/30 p-4 pt-[10vh] backdrop-blur-xs; }
+    .flash { @apply rounded-lg border px-4 py-3 text-sm; }
+    .app-content { @apply min-w-0 flex-1 px-4 py-6 sm:px-7 lg:px-8; }
+    .app-content h2, .app-content h3 { @apply tracking-tight; }
+    .app-content table { @apply min-w-full; }
+    .app-content th { @apply font-semibold; }
+    .app-content thead { @apply tracking-normal normal-case; }
+    .app-content td { @apply align-top; }
+}
+
+.app-content .text-xs, .app-content .text-\[11px\] { font-size: .875rem; line-height: 1.45; }
+.app-content .text-\[10px\] { font-size: .75rem; line-height: 1.5; }
+.app-content .text-slate-400 { color: #64748b; }
+.app-content input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+.app-content select, .app-content textarea { min-height: 2.5rem; }
+button, a, input, select, textarea, summary { -webkit-tap-highlight-color: transparent; }
+button, summary { cursor: pointer; }
+button:disabled { cursor: wait; opacity: .65; }
+:focus-visible { outline: 3px solid #93c5fd; outline-offset: 3px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offset: 1px; border-color: #2563eb; }
+select { max-width: 100%; }
+textarea { resize: vertical; }
+.app-content .overflow-x-auto { overscroll-behavior-x: contain; }
+.app-content .fixed.inset-0 > div { max-height: 90dvh; overflow-y: auto; }
+.app-sidebar.is-collapsed { width: 4.75rem; }
+.app-sidebar.is-collapsed .nav-label, .app-sidebar.is-collapsed .nav-heading, .app-sidebar.is-collapsed .brand-text { display: none; }
+.app-sidebar.is-collapsed .nav-link { justify-content: center; padding-inline: .75rem; }
+.app-sidebar.is-collapsed .nav-section-title { font-size: 0; justify-content: center; }
+@media (max-width: 1023px) {
+    .app-sidebar.is-collapsed { width: 16rem; }
+    .app-sidebar.is-collapsed .nav-label, .app-sidebar.is-collapsed .nav-heading, .app-sidebar.is-collapsed .brand-text { display: block; }
+    .app-sidebar.is-collapsed .nav-link { justify-content: flex-start; }
+    .app-sidebar.is-collapsed .nav-section-title { font-size: .75rem; justify-content: space-between; }
+}
+@media (max-width: 639px) {
+    .app-content form[method="GET"] { width: 100%; }
+    .app-content form[method="GET"] > input, .app-content form[method="GET"] > select { flex: 1 1 8rem; min-width: 0; }
+    .app-content .grid-cols-2 { grid-template-columns: minmax(0, 1fr); }
+}
+@media print {
+    .app-sidebar, .app-topbar, .page-actions, .dialog-backdrop, .app-footer { display: none !important; }
+    .app-content { padding: 0; }
+    body { background: white; }
+    .panel { break-inside: avoid; box-shadow: none; }
 }

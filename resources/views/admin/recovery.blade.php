@@ -1,7 +1,7 @@
 @extends('layouts.app')
-@section('title', 'Authorised Data Recovery')
-@section('page_title', 'Authorised Soft-Deleted Record Recovery Vault')
-@section('page_subtitle', 'Inspect and restore soft-deleted candidates, job requirements, and client organisations')
+@section('title', 'Recover deleted records')
+@section('page_title', 'Recover deleted records')
+@section('page_subtitle', 'Restore authorised records from the recovery list.')
 
 @section('content')
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs">

@@ -1,7 +1,7 @@
 @extends('layouts.app')
-@section('title', 'Client Hiring Performance')
-@section('page_title', 'Client-Wise Hiring & Conversion Performance')
-@section('page_subtitle', 'Track requirements, submissions, interview conversions, offers, and placements per client organisation')
+@section('title', 'Client performance')
+@section('page_title', 'Client performance')
+@section('page_subtitle', 'Track hiring progress for each client.')
 
 @section('content')
 <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">

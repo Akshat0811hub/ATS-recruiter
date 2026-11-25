@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Services\AuditService;
 use App\Services\EmailService;
 use App\Services\PipelineService;
+use App\Services\RecruitmentAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -30,7 +31,7 @@ class RecruitmentOperationController extends Controller
 
     public function applications(Request $request)
     {
-        $query = CandidateApplication::with([
+        $query = RecruitmentAccess::query(CandidateApplication::class)->with([
             'candidate.skills',
             'candidate.primaryResume',
             'jobRequirement.client',
@@ -62,9 +63,9 @@ class RecruitmentOperationController extends Controller
         }
 
         $applications = $query->orderByDesc('stage_updated_at')->paginate(25)->withQueryString();
-        $jobs = JobRequirement::with('client')->orderByDesc('id')->get();
-        $clients = Client::orderBy('company_name')->get();
-        $recruiters = User::whereHas('role', fn ($q) => $q->whereIn('slug', ['recruiter', 'team_leader']))->get();
+        $jobs = RecruitmentAccess::query(JobRequirement::class)->with('client')->orderByDesc('id')->get();
+        $clients = RecruitmentAccess::query(Client::class)->orderBy('company_name')->get();
+        $recruiters = RecruitmentAccess::query(User::class)->whereHas('role', fn ($q) => $q->whereIn('slug', ['recruiter', 'team_leader']))->get();
 
         return view('operations.applications', compact('applications', 'jobs', 'clients', 'recruiters'));
     }
@@ -79,11 +80,11 @@ class RecruitmentOperationController extends Controller
             'stage_remarks' => ['nullable', 'string'],
         ]);
 
-        $candidate = Candidate::findOrFail($data['candidate_id']);
-        $job = JobRequirement::findOrFail($data['job_requirement_id']);
+        $candidate = RecruitmentAccess::query(Candidate::class)->findOrFail($data['candidate_id']);
+        $job = RecruitmentAccess::query(JobRequirement::class)->findOrFail($data['job_requirement_id']);
 
         // Prevent duplicate effort: show when another recruiter is already working on the same candidate for the same vacancy
-        $existingApp = CandidateApplication::with('recruiter')
+        $existingApp = RecruitmentAccess::query(CandidateApplication::class)->with('recruiter')
             ->where('candidate_id', $candidate->id)
             ->where('job_requirement_id', $job->id)
             ->first();
@@ -147,7 +148,7 @@ class RecruitmentOperationController extends Controller
         return DB::transaction(function () use ($candidate, $data) {
             $appId = $data['candidate_application_id'] ?? null;
             if (! $appId && ! empty($data['job_requirement_id'])) {
-                $app = CandidateApplication::where('candidate_id', $candidate->id)
+                $app = RecruitmentAccess::query(CandidateApplication::class)->where('candidate_id', $candidate->id)
                     ->where('job_requirement_id', $data['job_requirement_id'])
                     ->first();
                 $appId = $app?->id;
@@ -195,7 +196,7 @@ class RecruitmentOperationController extends Controller
             ]);
 
             if ($appId) {
-                $app = CandidateApplication::find($appId);
+                $app = RecruitmentAccess::query(CandidateApplication::class)->find($appId);
                 if ($app && $app->pipeline_stage === 'sourced') {
                     $nextStage = match ($call->outcome) {
                         'interested' => 'interested',
@@ -299,7 +300,7 @@ class RecruitmentOperationController extends Controller
 
     public function submissions(Request $request)
     {
-        $query = ClientSubmission::with(['candidate', 'jobRequirement', 'client', 'recruiter', 'resumeVersion']);
+        $query = RecruitmentAccess::query(ClientSubmission::class)->with(['candidate', 'jobRequirement', 'client', 'recruiter', 'resumeVersion']);
 
         if ($decision = $request->query('decision')) {
             $query->where('client_decision', $decision);
@@ -312,9 +313,9 @@ class RecruitmentOperationController extends Controller
         }
 
         $submissions = $query->orderByDesc('submitted_at')->paginate(25)->withQueryString();
-        $clients = Client::orderBy('company_name')->get();
-        $jobs = JobRequirement::orderByDesc('id')->get();
-        $screenedApplications = CandidateApplication::with(['candidate', 'jobRequirement.client'])
+        $clients = RecruitmentAccess::query(Client::class)->orderBy('company_name')->get();
+        $jobs = RecruitmentAccess::query(JobRequirement::class)->orderByDesc('id')->get();
+        $screenedApplications = RecruitmentAccess::query(CandidateApplication::class)->with(['candidate', 'jobRequirement.client'])
             ->whereDoesntHave('clientSubmission')
             ->whereIn('pipeline_stage', ['interested', 'screened'])
             ->get();
@@ -332,7 +333,7 @@ class RecruitmentOperationController extends Controller
         ]);
 
         // Prevent duplicate submissions for the same candidate and job
-        $existing = ClientSubmission::where('candidate_id', $application->candidate_id)
+        $existing = RecruitmentAccess::query(ClientSubmission::class)->where('candidate_id', $application->candidate_id)
             ->where('job_requirement_id', $application->job_requirement_id)
             ->first();
 
@@ -417,12 +418,12 @@ class RecruitmentOperationController extends Controller
 
         DB::transaction(function () use ($data, &$submittedCount, &$skippedDuplicates) {
             foreach ($data['application_ids'] as $appId) {
-                $app = CandidateApplication::with(['candidate.primaryResume', 'jobRequirement'])->find($appId);
+                $app = RecruitmentAccess::query(CandidateApplication::class)->with(['candidate.primaryResume', 'jobRequirement'])->find($appId);
                 if (! $app) {
                     continue;
                 }
 
-                $alreadySubmitted = ClientSubmission::where('candidate_id', $app->candidate_id)
+                $alreadySubmitted = RecruitmentAccess::query(ClientSubmission::class)->where('candidate_id', $app->candidate_id)
                     ->where('job_requirement_id', $app->job_requirement_id)
                     ->exists();
 
@@ -544,7 +545,7 @@ class RecruitmentOperationController extends Controller
 
     public function pipeline(Request $request)
     {
-        $query = CandidateApplication::with([
+        $query = RecruitmentAccess::query(CandidateApplication::class)->with([
             'candidate.skills',
             'jobRequirement.client',
             'recruiter',
@@ -569,9 +570,9 @@ class RecruitmentOperationController extends Controller
 
         $mainStages = CandidateApplication::MAIN_STAGES;
         $alternativeStates = CandidateApplication::ALTERNATIVE_STATES;
-        $jobs = JobRequirement::with('client')->orderByDesc('id')->get();
-        $clients = Client::orderBy('company_name')->get();
-        $recruiters = User::whereHas('role', fn ($q) => $q->whereIn('slug', ['recruiter', 'team_leader']))->get();
+        $jobs = RecruitmentAccess::query(JobRequirement::class)->with('client')->orderByDesc('id')->get();
+        $clients = RecruitmentAccess::query(Client::class)->orderBy('company_name')->get();
+        $recruiters = RecruitmentAccess::query(User::class)->whereHas('role', fn ($q) => $q->whereIn('slug', ['recruiter', 'team_leader']))->get();
         $viewMode = $request->query('view', 'kanban');
 
         return view('operations.pipeline', compact(

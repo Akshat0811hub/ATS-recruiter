@@ -1,7 +1,7 @@
 @extends('layouts.app')
-@section('title', 'Recruiter & Team Performance')
-@section('page_title', 'Recruiter & Team Performance Analytics')
-@section('page_subtitle', 'Transparent activity records, daily targets, workload distribution, and placement results')
+@section('title', 'Recruiter performance')
+@section('page_title', 'Recruiter performance')
+@section('page_subtitle', 'Review sourcing, submissions and joining results across your team.')
 
 @section('content')
 <div class="space-y-6">

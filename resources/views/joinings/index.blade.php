@@ -1,7 +1,7 @@
 @extends('layouts.app')
-@section('title', 'Joining & Placement Management')
-@section('page_title', 'Joining, Placements & Replacement Warranty Management')
-@section('page_subtitle', 'Confirm joinings, automatically update remaining vacancy counts, log post-joining check-ins, and manage replacements')
+@section('title', 'Joinings & placements')
+@section('page_title', 'Joinings & placements')
+@section('page_subtitle', 'Confirm joining dates and keep post-joining follow-ups on track.')
 
 @section('content')
 <!-- Filters -->

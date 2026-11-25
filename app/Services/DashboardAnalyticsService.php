@@ -59,14 +59,14 @@ class DashboardAnalyticsService
 
         $teamRecruiterIds = null;
         if ($teamId) {
-            $teamRecruiterIds = User::where('team_id', $teamId)
+            $teamRecruiterIds = RecruitmentAccess::query(User::class)->where('team_id', $teamId)
                 ->orWhereHas('teams', fn ($q) => $q->where('teams.id', $teamId))
                 ->pluck('id')
                 ->all();
         }
 
         // Job scope
-        $jobsQuery = JobRequirement::query();
+        $jobsQuery = RecruitmentAccess::query(JobRequirement::class);
         if ($clientId) {
             $jobsQuery->where('client_id', $clientId);
         }
@@ -89,7 +89,7 @@ class DashboardAnalyticsService
         ];
 
         // Application scope (distinct by candidate_applications.id to prevent double counting)
-        $appsQuery = CandidateApplication::query();
+        $appsQuery = RecruitmentAccess::query(CandidateApplication::class);
         if ($clientId) {
             $appsQuery->where('client_id', $clientId);
         }
@@ -109,8 +109,8 @@ class DashboardAnalyticsService
         $todayEnd = Carbon::today()->endOfDay();
 
         // Core Overview Metrics
-        $totalClients = Client::count();
-        $activeClients = Client::where('status', 'active')->count();
+        $totalClients = RecruitmentAccess::query(Client::class)->count();
+        $activeClients = RecruitmentAccess::query(Client::class)->where('status', 'active')->count();
         $activeRequirements = (clone $jobsQuery)->whereIn('status', $activeJobStatuses)->count();
         $openVacancies = (int) (clone $jobsQuery)->whereIn('status', $activeJobStatuses)->sum('remaining_count');
         $filledVacancies = (int) (clone $jobsQuery)->sum('joined_count');
@@ -121,45 +121,45 @@ class DashboardAnalyticsService
             ->where('remaining_count', '>', 0)
             ->count();
 
-        $totalCandidates = Candidate::count();
-        $newCandidatesToday = Candidate::whereBetween('created_at', [$todayStart, $todayEnd])->count();
-        $callsRecordedToday = CallLog::whereBetween('called_at', [$todayStart, $todayEnd])
+        $totalCandidates = RecruitmentAccess::query(Candidate::class)->count();
+        $newCandidatesToday = RecruitmentAccess::query(Candidate::class)->whereBetween('created_at', [$todayStart, $todayEnd])->count();
+        $callsRecordedToday = RecruitmentAccess::query(CallLog::class)->whereBetween('called_at', [$todayStart, $todayEnd])
             ->when($recruiterId, fn ($q) => $q->where('recruiter_id', $recruiterId))
             ->count();
 
-        $profilesSubmittedToday = ClientSubmission::whereBetween('submitted_at', [$todayStart, $todayEnd])
+        $profilesSubmittedToday = RecruitmentAccess::query(ClientSubmission::class)->whereBetween('submitted_at', [$todayStart, $todayEnd])
             ->when($recruiterId, fn ($q) => $q->where('recruiter_id', $recruiterId))
             ->when($clientId, fn ($q) => $q->where('client_id', $clientId))
             ->count();
 
-        $totalSubmissions = ClientSubmission::query()
+        $totalSubmissions = RecruitmentAccess::query(ClientSubmission::class)
             ->when($clientId, fn ($q) => $q->where('client_id', $clientId))
             ->when($jobId, fn ($q) => $q->where('job_requirement_id', $jobId))
             ->when($recruiterId, fn ($q) => $q->where('recruiter_id', $recruiterId))
             ->when($startDate && $endDate, fn ($q) => $q->whereBetween('submitted_at', [$startDate, $endDate]))
             ->count();
 
-        $clientShortlists = ClientSubmission::query()
+        $clientShortlists = RecruitmentAccess::query(ClientSubmission::class)
             ->whereIn('client_decision', ['shortlisted', 'interview_requested'])
             ->when($clientId, fn ($q) => $q->where('client_id', $clientId))
             ->when($jobId, fn ($q) => $q->where('job_requirement_id', $jobId))
             ->when($recruiterId, fn ($q) => $q->where('recruiter_id', $recruiterId))
             ->count();
 
-        $pendingClientFeedback = ClientSubmission::query()
+        $pendingClientFeedback = RecruitmentAccess::query(ClientSubmission::class)
             ->where('client_decision', 'pending_review')
             ->when($clientId, fn ($q) => $q->where('client_id', $clientId))
             ->when($jobId, fn ($q) => $q->where('job_requirement_id', $jobId))
             ->when($recruiterId, fn ($q) => $q->where('recruiter_id', $recruiterId))
             ->count();
 
-        $interviewsScheduledToday = InterviewRecord::query()
+        $interviewsScheduledToday = RecruitmentAccess::query(InterviewRecord::class)
             ->whereDate('interview_date', Carbon::today()->toDateString())
             ->whereIn('status', ['scheduled', 'rescheduled', 'completed', 'passed'])
             ->when($clientId, fn ($q) => $q->where('client_id', $clientId))
             ->count();
 
-        $distinctInterviewedApps = InterviewRecord::query()
+        $distinctInterviewedApps = RecruitmentAccess::query(InterviewRecord::class)
             ->when($clientId, fn ($q) => $q->where('client_id', $clientId))
             ->when($jobId, fn ($q) => $q->where('job_requirement_id', $jobId))
             ->distinct('candidate_application_id')
@@ -169,34 +169,34 @@ class DashboardAnalyticsService
             ->whereIn('pipeline_stage', ['selected', 'offer_released', 'offer_accepted', 'joining_pending', 'joined'])
             ->count();
 
-        $offersReleased = Offer::query()
+        $offersReleased = RecruitmentAccess::query(Offer::class)
             ->whereIn('status', ['offer_released', 'under_negotiation', 'offer_accepted', 'offer_rejected', 'candidate_backed_out'])
             ->when($clientId, fn ($q) => $q->where('client_id', $clientId))
             ->when($jobId, fn ($q) => $q->where('job_requirement_id', $jobId))
             ->when($recruiterId, fn ($q) => $q->where('recruiter_id', $recruiterId))
             ->count();
 
-        $offersAccepted = Offer::query()
+        $offersAccepted = RecruitmentAccess::query(Offer::class)
             ->where('status', 'offer_accepted')
             ->when($clientId, fn ($q) => $q->where('client_id', $clientId))
             ->when($jobId, fn ($q) => $q->where('job_requirement_id', $jobId))
             ->when($recruiterId, fn ($q) => $q->where('recruiter_id', $recruiterId))
             ->count();
 
-        $upcomingJoinings = JoiningRecord::query()
+        $upcomingJoinings = RecruitmentAccess::query(JoiningRecord::class)
             ->where('status', 'joining_pending')
             ->where('expected_joining_date', '>=', Carbon::today()->toDateString())
             ->when($clientId, fn ($q) => $q->where('client_id', $clientId))
             ->count();
 
-        $candidatesJoined = JoiningRecord::query()
+        $candidatesJoined = RecruitmentAccess::query(JoiningRecord::class)
             ->whereIn('status', ['joined', 'placement_completed'])
             ->when($clientId, fn ($q) => $q->where('client_id', $clientId))
             ->when($jobId, fn ($q) => $q->where('job_requirement_id', $jobId))
             ->when($recruiterId, fn ($q) => $q->where('recruiter_id', $recruiterId))
             ->count();
 
-        $pendingFollowUps = Task::query()
+        $pendingFollowUps = RecruitmentAccess::query(Task::class)
             ->whereIn('status', ['pending', 'in_progress'])
             ->when($recruiterId, fn ($q) => $q->where('assigned_to', $recruiterId))
             ->count();
@@ -235,7 +235,7 @@ class DashboardAnalyticsService
             ->all();
 
         // Source Effectiveness
-        $sourceEffectiveness = Candidate::query()
+        $sourceEffectiveness = RecruitmentAccess::query(Candidate::class)
             ->select('source', DB::raw('COUNT(*) as total_candidates'))
             ->groupBy('source')
             ->orderByDesc('total_candidates')
@@ -243,7 +243,7 @@ class DashboardAnalyticsService
             ->get();
 
         // Dropout / Non-joining Reasons
-        $dropoutReasons = CandidateApplication::query()
+        $dropoutReasons = RecruitmentAccess::query(CandidateApplication::class)
             ->whereNotNull('dropout_reason')
             ->select('dropout_reason', DB::raw('COUNT(*) as total'))
             ->groupBy('dropout_reason')
@@ -252,7 +252,7 @@ class DashboardAnalyticsService
             ->get();
 
         // Recruiter Performance Leaderboard
-        $recruiterPerformance = User::query()
+        $recruiterPerformance = RecruitmentAccess::query(User::class)
             ->whereHas('role', fn ($q) => $q->whereIn('slug', ['recruiter', 'team_leader']))
             ->withCount([
                 'sourcedCandidates',
@@ -267,7 +267,7 @@ class DashboardAnalyticsService
             ->get();
 
         // Client Hiring Performance
-        $clientPerformance = Client::query()
+        $clientPerformance = RecruitmentAccess::query(Client::class)
             ->withCount([
                 'jobRequirements',
                 'clientSubmissions',
@@ -280,7 +280,7 @@ class DashboardAnalyticsService
             ->get();
 
         // Team Performance
-        $teamPerformance = Team::query()
+        $teamPerformance = RecruitmentAccess::query(Team::class)
             ->with(['manager', 'teamLeader'])
             ->withCount(['directUsers as recruiters_count', 'jobRequirements'])
             ->get();

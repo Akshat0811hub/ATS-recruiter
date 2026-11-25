@@ -42,6 +42,31 @@ class TwoFactorService
         return str_pad((string) ($value % 1000000), 6, '0', STR_PAD_LEFT);
     }
 
+    public function buildOtpAuthUri(string $accountEmail, string $secret): string
+    {
+        $issuer = rawurlencode((string) config('app.name', 'OrbiTouch ATS'));
+        $label = rawurlencode(config('app.name', 'OrbiTouch ATS').':'.$accountEmail);
+
+        return "otpauth://totp/{$label}?secret={$secret}&issuer={$issuer}&algorithm=SHA1&digits=6&period=30";
+    }
+
+    public function verifySecretCode(string $secret, string $inputCode): bool
+    {
+        $inputCode = preg_replace('/\s+/', '', trim($inputCode)) ?? '';
+        if ($secret === '' || ! preg_match('/^\d{6}$/', $inputCode)) {
+            return false;
+        }
+
+        $currentSlice = (int) floor(time() / 30);
+        for ($offset = -1; $offset <= 1; $offset++) {
+            if (hash_equals($this->getCurrentTotpCode($secret, $currentSlice + $offset), $inputCode)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function verifyCode(User $user, string $inputCode): bool
     {
         $inputCode = trim($inputCode);
@@ -49,11 +74,8 @@ class TwoFactorService
             return false;
         }
 
-        $currentSlice = (int) floor(time() / 30);
-        for ($offset = -1; $offset <= 1; $offset++) {
-            if (hash_equals($this->getCurrentTotpCode($user->two_factor_secret, $currentSlice + $offset), $inputCode)) {
-                return true;
-            }
+        if ($this->verifySecretCode($user->two_factor_secret, $inputCode)) {
+            return true;
         }
 
         // Check recovery codes

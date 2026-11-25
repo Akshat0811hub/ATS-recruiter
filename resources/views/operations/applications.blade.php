@@ -1,7 +1,7 @@
 @extends('layouts.app')
-@section('title', 'Candidate Applications')
-@section('page_title', 'Candidate Applications & Job Associations')
-@section('page_subtitle', 'Every candidate-to-vacancy association with recruiter ownership, screening checklists, and stage progression')
+@section('title', 'Applications')
+@section('page_title', 'Applications')
+@section('page_subtitle', 'Each application connects one candidate to one job.')
 
 @section('content')
 <!-- Filters -->

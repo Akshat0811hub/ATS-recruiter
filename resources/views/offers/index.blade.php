@@ -1,10 +1,10 @@
 @extends('layouts.app')
-@section('title', 'Offer Management')
-@section('page_title', 'Offer Management & Salary Negotiation Ledger')
-@section('page_subtitle', 'Track offered and negotiated compensation, offer letters, revision history, and acceptance reminders')
+@section('title', 'Offers')
+@section('page_title', 'Offers')
+@section('page_subtitle', 'Track offers, salary discussions and candidate acceptance.')
 
 @section('content')
-<div x-data="{ showOfferModal: false }">
+<div x-data="{ showOfferModal: {{ request()->boolean('create') || $errors->any() ? 'true' : 'false' }} }">
     <!-- Filter & Create Toolbar -->
     <div class="mb-5 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
         <form method="GET" action="{{ route('offers.index') }}" class="flex flex-wrap items-center gap-2.5">
@@ -99,7 +99,7 @@
     </div>
 
     <!-- Create / Update Offer Modal -->
-    <div x-show="showOfferModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 overflow-y-auto">
+    <div x-show="showOfferModal" x-cloak role="dialog" aria-modal="true" aria-label="offers form" @keydown.escape.window="showOfferModal = false" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 overflow-y-auto">
         <div @click.away="showOfferModal = false" x-data="{ selectedAppId: '{{ $selectedApplications->first()?->id ?? '' }}' }" class="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 text-xs">
             <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
                 <h3 class="text-sm font-bold text-slate-900 dark:text-white">Create or Revise Candidate Offer</h3>

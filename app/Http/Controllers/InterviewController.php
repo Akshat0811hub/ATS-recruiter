@@ -13,6 +13,7 @@ use App\Models\JobRequirement;
 use App\Services\AuditService;
 use App\Services\EmailService;
 use App\Services\PipelineService;
+use App\Services\RecruitmentAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -27,7 +28,7 @@ class InterviewController extends Controller
 
     public function index(Request $request)
     {
-        $query = InterviewRecord::with([
+        $query = RecruitmentAccess::query(InterviewRecord::class)->with([
             'candidate',
             'jobRequirement',
             'client',
@@ -50,9 +51,9 @@ class InterviewController extends Controller
         }
 
         $interviews = $query->orderByDesc('interview_date')->orderBy('round_number')->paginate(25)->withQueryString();
-        $clients = Client::orderBy('company_name')->get();
-        $jobs = JobRequirement::with('interviewRoundDefinitions')->orderByDesc('id')->get();
-        $eligibleApplications = CandidateApplication::with(['candidate', 'jobRequirement.client', 'jobRequirement.interviewRoundDefinitions', 'interviewRecords'])
+        $clients = RecruitmentAccess::query(Client::class)->orderBy('company_name')->get();
+        $jobs = RecruitmentAccess::query(JobRequirement::class)->with('interviewRoundDefinitions')->orderByDesc('id')->get();
+        $eligibleApplications = RecruitmentAccess::query(CandidateApplication::class)->with(['candidate', 'jobRequirement.client', 'jobRequirement.interviewRoundDefinitions', 'interviewRecords'])
             ->whereIn('pipeline_stage', ['submitted', 'client_shortlisted', 'interview_scheduled', 'interview_in_progress'])
             ->orderByDesc('id')
             ->get();
@@ -101,7 +102,7 @@ class InterviewController extends Controller
         $scheduledAt = Carbon::parse($data['interview_date'].' '.$data['interview_time']);
 
         // Conflict Detection for Candidate at the exact scheduled timestamp
-        $candidateConflict = InterviewRecord::where('candidate_id', $application->candidate_id)
+        $candidateConflict = RecruitmentAccess::query(InterviewRecord::class)->where('candidate_id', $application->candidate_id)
             ->where('candidate_application_id', '!=', $application->id)
             ->whereDate('interview_date', $data['interview_date'])
             ->where('interview_time', $data['interview_time'])
@@ -121,7 +122,7 @@ class InterviewController extends Controller
 
             $roundName = $data['round_name'] ?: ($roundDef?->round_name ?? "Round {$roundNumber}: Interview");
 
-            $existingRecord = InterviewRecord::where('candidate_application_id', $application->id)
+            $existingRecord = RecruitmentAccess::query(InterviewRecord::class)->where('candidate_application_id', $application->id)
                 ->where('round_number', $roundNumber)
                 ->first();
 

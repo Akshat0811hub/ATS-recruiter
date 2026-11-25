@@ -2,12 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CandidateApplication;
 use App\Models\Client;
 use App\Models\ClientContact;
+use App\Models\ClientSubmission;
+use App\Models\InterviewRecord;
+use App\Models\JobRequirement;
+use App\Models\JoiningRecord;
+use App\Models\Offer;
 use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\AuditService;
+use App\Services\RecruitmentAccess;
 use App\Services\StorageManagementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,7 +27,7 @@ class ClientController extends Controller
 
     public function index(Request $request)
     {
-        $query = Client::with(['accountManager', 'assignedTeam'])
+        $query = RecruitmentAccess::query(Client::class)->with(['accountManager', 'assignedTeam'])
             ->withCount([
                 'jobRequirements',
                 'jobRequirements as active_requirements_count' => fn ($q) => $q->whereNotIn('status', ['successfully_closed', 'cancelled']),
@@ -44,8 +51,8 @@ class ClientController extends Controller
         }
 
         $clients = $query->orderByDesc('id')->paginate(25)->withQueryString();
-        $managers = User::whereHas('role', fn ($q) => $q->whereIn('slug', ['super_admin', 'manager']))->get();
-        $teams = Team::where('is_active', true)->get();
+        $managers = RecruitmentAccess::query(User::class)->whereHas('role', fn ($q) => $q->whereIn('slug', ['super_admin', 'manager']))->get();
+        $teams = RecruitmentAccess::query(Team::class)->where('is_active', true)->get();
 
         return view('clients.index', compact('clients', 'managers', 'teams'));
     }
@@ -123,7 +130,7 @@ class ClientController extends Controller
         $portalUserId = null;
         if ($request->boolean('create_portal_user')) {
             $clientRole = Role::where('slug', 'client')->first();
-            $existingUser = User::where('email', $client->primary_hr_email)->first();
+            $existingUser = RecruitmentAccess::query(User::class)->where('email', $client->primary_hr_email)->first();
             if (! $existingUser && $clientRole) {
                 $portalUser = User::create([
                     'employee_code' => 'CLT-'.Str::upper(Str::random(5)),
@@ -167,25 +174,27 @@ class ClientController extends Controller
             'assignedTeam',
             'agreementStorage',
             'contacts',
-            'jobRequirements.assignments.recruiter',
+            'jobRequirements' => fn ($q) => RecruitmentAccess::scope($q)->with('assignments.recruiter'),
             'communications.user',
         ]);
 
+        $scopedJobs = RecruitmentAccess::query(JobRequirement::class)->where('client_id', $client->id);
+
         $kpis = [
-            'total_requirements' => $client->jobRequirements()->count(),
-            'active_vacancies' => (int) $client->jobRequirements()->whereNotIn('status', ['successfully_closed', 'cancelled'])->sum('remaining_count'),
-            'candidates_submitted' => $client->clientSubmissions()->count(),
-            'candidates_shortlisted' => $client->clientSubmissions()->whereIn('client_decision', ['shortlisted', 'interview_requested'])->count(),
-            'interviews_scheduled' => $client->interviewRecords()->count(),
-            'candidates_selected' => $client->candidateApplications()->whereIn('pipeline_stage', ['selected', 'offer_released', 'offer_accepted', 'joining_pending', 'joined'])->count(),
-            'offers_released' => $client->offers()->count(),
-            'candidates_joined' => $client->joiningRecords()->whereIn('status', ['joined', 'placement_completed'])->count(),
-            'pending_feedback' => $client->clientSubmissions()->where('client_decision', 'pending_review')->count(),
-            'closed_requirements' => $client->jobRequirements()->where('status', 'successfully_closed')->count(),
+            'total_requirements' => (clone $scopedJobs)->count(),
+            'active_vacancies' => (int) (clone $scopedJobs)->whereNotIn('status', ['successfully_closed', 'cancelled'])->sum('remaining_count'),
+            'candidates_submitted' => RecruitmentAccess::query(ClientSubmission::class)->where('client_id', $client->id)->count(),
+            'candidates_shortlisted' => RecruitmentAccess::query(ClientSubmission::class)->where('client_id', $client->id)->whereIn('client_decision', ['shortlisted', 'interview_requested'])->count(),
+            'interviews_scheduled' => RecruitmentAccess::query(InterviewRecord::class)->where('client_id', $client->id)->count(),
+            'candidates_selected' => RecruitmentAccess::query(CandidateApplication::class)->where('client_id', $client->id)->whereIn('pipeline_stage', ['selected', 'offer_released', 'offer_accepted', 'joining_pending', 'joined'])->count(),
+            'offers_released' => RecruitmentAccess::query(Offer::class)->where('client_id', $client->id)->count(),
+            'candidates_joined' => RecruitmentAccess::query(JoiningRecord::class)->where('client_id', $client->id)->whereIn('status', ['joined', 'placement_completed'])->count(),
+            'pending_feedback' => RecruitmentAccess::query(ClientSubmission::class)->where('client_id', $client->id)->where('client_decision', 'pending_review')->count(),
+            'closed_requirements' => (clone $scopedJobs)->where('status', 'successfully_closed')->count(),
         ];
 
-        $managers = User::whereHas('role', fn ($q) => $q->whereIn('slug', ['super_admin', 'manager']))->get();
-        $teams = Team::where('is_active', true)->get();
+        $managers = RecruitmentAccess::query(User::class)->whereHas('role', fn ($q) => $q->whereIn('slug', ['super_admin', 'manager']))->get();
+        $teams = RecruitmentAccess::query(Team::class)->where('is_active', true)->get();
 
         return view('clients.show', compact('client', 'kpis', 'managers', 'teams'));
     }
@@ -251,7 +260,7 @@ class ClientController extends Controller
         $portalUserId = null;
         if ($request->boolean('create_portal_login')) {
             $clientRole = Role::where('slug', 'client')->first();
-            $existingUser = User::where('email', strtolower(trim($data['email'])))->first();
+            $existingUser = RecruitmentAccess::query(User::class)->where('email', strtolower(trim($data['email'])))->first();
             if (! $existingUser && $clientRole) {
                 $portalUser = User::create([
                     'employee_code' => 'CLT-'.Str::upper(Str::random(5)),

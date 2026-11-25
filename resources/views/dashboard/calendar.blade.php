@@ -1,9 +1,10 @@
 @extends('layouts.app')
-@section('title', 'Recruitment Calendar & Agenda')
-@section('page_title', 'Recruitment Calendar & Daily Operational Agenda')
-@section('page_subtitle', 'Scheduled interviews, candidate follow-ups, and upcoming joining dates')
+@section('title', 'Calendar')
+@section('page_title', 'Calendar')
+@section('page_subtitle', 'Interviews, follow-ups and joinings for your selected day.')
 
 @section('content')
+<form method="GET" action="{{ route('calendar') }}" class="panel mb-5 flex flex-wrap items-end gap-3 p-4"><label class="text-sm font-medium">Date<input type="date" name="date" value="{{ $date }}" required class="field mt-1"></label><button type="submit" class="btn-primary">View day</button><a href="{{ route('calendar') }}" class="btn-secondary">Today</a></form>
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs">
     <!-- Scheduled Interviews -->
     <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">

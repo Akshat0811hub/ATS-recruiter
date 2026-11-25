@@ -31,7 +31,7 @@
         <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 space-y-3">
             <div class="flex items-center justify-between">
                 <h2 class="text-sm font-bold text-slate-900 dark:text-white">Commercial & Agreement Details</h2>
-                @if($client->agreement_storage_id)
+                @if($client->agreement_storage_id && (auth()->user()->hasRole(['super_admin', 'manager']) || auth()->user()->hasPermission('clients.manage')))
                     <a href="{{ route('documents.download', $client->agreement_storage_id) }}" class="px-2.5 py-1 rounded bg-[#0B1528] text-white font-semibold text-[11px]">
                         Download Agreement
                     </a>
@@ -49,7 +49,7 @@
                     <p class="text-slate-600 dark:text-slate-300 mt-0.5">{{ $client->recruitment_terms }}</p>
                 </div>
             @endif
-            @if($client->internal_notes)
+            @if($client->internal_notes && (auth()->user()->hasRole(['super_admin', 'manager']) || auth()->user()->hasPermission('clients.manage')))
                 <div class="p-3 rounded-lg bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
                     <div class="text-[10px] font-bold uppercase text-amber-800 dark:text-amber-300">Confidential Internal Notes (Hidden from Client Portal)</div>
                     <p class="text-amber-900 dark:text-amber-200 mt-0.5">{{ $client->internal_notes }}</p>

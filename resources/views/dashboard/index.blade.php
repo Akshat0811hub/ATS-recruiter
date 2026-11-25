@@ -1,243 +1,85 @@
 @extends('layouts.app')
-@section('title', 'Executive Overview Dashboard')
-@section('page_title', 'Executive Overview & Live Recruitment Intelligence')
-@section('page_subtitle', 'Real-time operational metrics, conversion funnel, and workload distribution from MySQL/SQLite')
-
+@section('title', 'Overview')
+@section('page_title', 'Your recruitment overview')
+@section('page_subtitle', 'A clear view of your hiring progress and the work that needs your attention.')
+@section('page_actions')
+<div class="page-actions flex items-center gap-3"><span class="hidden text-sm text-slate-500 sm:inline">{{ now()->format('D, d M Y') }}</span><a href="{{ route('my-work') }}" class="btn-secondary"><x-icon name="briefcase" class="size-4" />My work</a></div>
+@endsection
 @section('content')
 @php
     $ov = $analytics['overview'];
     $conv = $analytics['conversions'];
-    $formulas = $analytics['formulas'];
 @endphp
-
-<!-- Multi-dimension Filter Bar -->
-<form method="GET" action="{{ route('dashboard') }}" class="mb-6 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-wrap items-end gap-3 text-xs">
-    <div>
-        <label class="block text-[10px] font-semibold uppercase text-slate-400 mb-1">Time Period</label>
-        <select name="period" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900">
-            <option value="all" {{ ($filters['period'] ?? 'all') === 'all' ? 'selected' : '' }}>All Time</option>
-            <option value="today" {{ ($filters['period'] ?? '') === 'today' ? 'selected' : '' }}>Today</option>
-            <option value="yesterday" {{ ($filters['period'] ?? '') === 'yesterday' ? 'selected' : '' }}>Yesterday</option>
-            <option value="this_week" {{ ($filters['period'] ?? '') === 'this_week' ? 'selected' : '' }}>This Week</option>
-            <option value="this_month" {{ ($filters['period'] ?? '') === 'this_month' ? 'selected' : '' }}>This Month</option>
-            <option value="custom" {{ ($filters['period'] ?? '') === 'custom' ? 'selected' : '' }}>Custom Range</option>
-        </select>
-    </div>
-    <div>
-        <label class="block text-[10px] font-semibold uppercase text-slate-400 mb-1">Client</label>
-        <select name="client_id" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900">
-            <option value="">All Clients</option>
-            @foreach($clients as $cl)
-                <option value="{{ $cl->id }}" {{ ($filters['client_id'] ?? '') == $cl->id ? 'selected' : '' }}>{{ $cl->company_name }}</option>
-            @endforeach
-        </select>
-    </div>
-    <div>
-        <label class="block text-[10px] font-semibold uppercase text-slate-400 mb-1">Team</label>
-        <select name="team_id" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900">
-            <option value="">All Teams</option>
-            @foreach($teams as $tm)
-                <option value="{{ $tm->id }}" {{ ($filters['team_id'] ?? '') == $tm->id ? 'selected' : '' }}>{{ $tm->name }}</option>
-            @endforeach
-        </select>
-    </div>
-    <div>
-        <label class="block text-[10px] font-semibold uppercase text-slate-400 mb-1">Recruiter</label>
-        <select name="recruiter_id" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900">
-            <option value="">All Recruiters</option>
-            @foreach($recruiters as $rec)
-                <option value="{{ $rec->id }}" {{ ($filters['recruiter_id'] ?? '') == $rec->id ? 'selected' : '' }}>{{ $rec->name }}</option>
-            @endforeach
-        </select>
-    </div>
-    <div>
-        <label class="block text-[10px] font-semibold uppercase text-slate-400 mb-1">Job Requirement</label>
-        <select name="job_id" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900">
-            <option value="">All Jobs</option>
-            @foreach($jobs as $jb)
-                <option value="{{ $jb->id }}" {{ ($filters['job_id'] ?? '') == $jb->id ? 'selected' : '' }}>{{ $jb->job_code }} — {{ \Illuminate\Support\Str::limit($jb->title, 26) }}</option>
-            @endforeach
-        </select>
-    </div>
-    <button type="submit" class="px-4 py-1.5 rounded-lg bg-[#0B1528] text-white font-semibold hover:bg-slate-800">Apply Filters</button>
-    <a href="{{ route('dashboard') }}" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300">Reset</a>
-</form>
-
-<!-- Clickable Primary KPI Grid (18 Executive Metrics) -->
-<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 mb-6">
-    <a href="{{ route('clients.index') }}" class="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-[#D3003B] transition">
-        <div class="text-[11px] font-medium text-slate-500">Active / Total Clients</div>
-        <div class="mt-1.5 text-xl font-bold text-slate-900 dark:text-white tabular-nums">{{ $ov['active_clients'] }} <span class="text-xs font-normal text-slate-400">/ {{ $ov['total_clients'] }}</span></div>
-    </a>
-    <a href="{{ route('jobs.index') }}" class="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-[#D3003B] transition">
-        <div class="text-[11px] font-medium text-slate-500">Active Requirements</div>
-        <div class="mt-1.5 text-xl font-bold text-slate-900 dark:text-white tabular-nums">{{ $ov['active_requirements'] }}</div>
-        <div class="text-[10px] text-rose-600 font-medium mt-0.5 tabular-nums">{{ $ov['overdue_requirements'] }} overdue</div>
-    </a>
-    <a href="{{ route('jobs.index') }}" class="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-[#D3003B] transition">
-        <div class="text-[11px] font-medium text-slate-500">Open / Filled Vacancies</div>
-        <div class="mt-1.5 text-xl font-bold text-[#1E40AF] dark:text-blue-400 tabular-nums">{{ $ov['open_vacancies'] }} <span class="text-xs font-normal text-emerald-600">/ {{ $ov['filled_vacancies'] }} filled</span></div>
-    </a>
-    <a href="{{ route('candidates.index') }}" class="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-[#D3003B] transition">
-        <div class="text-[11px] font-medium text-slate-500">Master Candidates</div>
-        <div class="mt-1.5 text-xl font-bold text-slate-900 dark:text-white tabular-nums">{{ $ov['total_candidates'] }}</div>
-        <div class="text-[10px] text-emerald-600 font-medium mt-0.5 tabular-nums">+{{ $ov['new_candidates_today'] }} sourced today</div>
-    </a>
-    <a href="{{ route('submissions.index') }}" class="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-[#D3003B] transition">
-        <div class="text-[11px] font-medium text-slate-500">Submissions / Shortlists</div>
-        <div class="mt-1.5 text-xl font-bold text-slate-900 dark:text-white tabular-nums">{{ $ov['total_submissions'] }} <span class="text-xs font-normal text-emerald-600">({{ $ov['client_shortlists'] }} shortlisted)</span></div>
-        <div class="text-[10px] text-amber-600 font-medium mt-0.5 tabular-nums">{{ $ov['pending_client_feedback'] }} pending feedback</div>
-    </a>
-    <a href="{{ route('joinings.index') }}" class="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-[#D3003B] transition">
-        <div class="text-[11px] font-medium text-slate-500">Offers / Confirmed Joined</div>
-        <div class="mt-1.5 text-xl font-bold text-emerald-600 tabular-nums">{{ $ov['candidates_joined'] }} <span class="text-xs font-normal text-slate-400">joined ({{ $ov['offers_accepted'] }} accepted)</span></div>
-        <div class="text-[10px] text-blue-600 font-medium mt-0.5 tabular-nums">{{ $ov['upcoming_joining_dates'] }} upcoming joinings</div>
-    </a>
+<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    @foreach([
+        ['Open jobs', $ov['active_requirements'], $ov['open_vacancies'].' vacancies to fill', 'briefcase', route('jobs.index', ['active' => 1])],
+        ['Candidates', $ov['total_candidates'], $ov['new_candidates_today'].' added today', 'users', route('candidates.index')],
+        ['Interviews today', $ov['interviews_scheduled_today'], 'View today’s interview schedule', 'calendar', route('interviews.index', ['date' => now()->toDateString()])],
+        ['Candidates joined', $ov['candidates_joined'], $ov['upcoming_joining_dates'].' upcoming joinings', 'check', route('joinings.index', ['status' => 'joined'])],
+    ] as [$label, $value, $detail, $icon, $url])
+    <a href="{{ $url }}" class="metric"><div class="flex items-center justify-between"><span class="text-sm font-medium text-slate-500">{{ $label }}</span><span class="rounded-lg bg-blue-50 p-2 text-blue-700"><x-icon :name="$icon" class="size-4" /></span></div><div class="metric-value">{{ number_format($value) }}</div><p class="text-sm text-slate-500">{{ $detail }}</p></a>
+    @endforeach
 </div>
-
-<!-- Secondary Today Operational Pulse -->
-<div class="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mb-6 text-xs">
-    <a href="{{ route('candidates.index') }}" class="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-        <span class="text-slate-500">Calls Recorded Today</span>
-        <span class="text-base font-bold tabular-nums text-slate-900 dark:text-white">{{ $ov['calls_recorded_today'] }}</span>
-    </a>
-    <a href="{{ route('submissions.index') }}" class="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-        <span class="text-slate-500">Profiles Submitted Today</span>
-        <span class="text-base font-bold tabular-nums text-slate-900 dark:text-white">{{ $ov['profiles_submitted_today'] }}</span>
-    </a>
-    <a href="{{ route('interviews.index', ['date' => now()->toDateString()]) }}" class="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-        <span class="text-slate-500">Interviews Today</span>
-        <span class="text-base font-bold tabular-nums text-[#D3003B]">{{ $ov['interviews_scheduled_today'] }}</span>
-    </a>
-    <a href="{{ route('tasks.index') }}" class="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-        <span class="text-slate-500">Pending Follow-ups</span>
-        <span class="text-base font-bold tabular-nums text-amber-600">{{ $ov['pending_follow_ups'] }}</span>
-    </a>
-</div>
-
-<!-- Recruitment Funnel & Conversion Ratios -->
-<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
-    <!-- Live Lifecycle Funnel -->
-    <div class="lg:col-span-7 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6">
-        <div class="flex items-center justify-between mb-4">
-            <div>
-                <h2 class="text-sm font-bold text-slate-900 dark:text-white">Recruitment Lifecycle Funnel</h2>
-                <p class="text-xs text-slate-500">Click any stage bar to inspect filtered candidate applications</p>
-            </div>
-            <a href="{{ route('pipeline.index') }}" class="text-xs font-semibold text-[#D3003B] hover:underline">Open Visual Kanban →</a>
-        </div>
-        <div class="space-y-2.5 text-xs">
-            @php
-                $maxStageCount = max(1, collect($analytics['funnel'])->max() ?? 1);
-            @endphp
-            @foreach(\App\Models\CandidateApplication::MAIN_STAGES as $stageKey => $stageLabel)
-                @php
-                    $cnt = (int) ($analytics['funnel'][$stageKey] ?? 0);
-                    $widthPct = min(100, max(4, round(($cnt / $maxStageCount) * 100)));
-                @endphp
-                <a href="{{ route('applications.index', ['stage' => $stageKey]) }}" class="block group">
-                    <div class="flex items-center justify-between mb-1">
-                        <span class="font-medium text-slate-700 dark:text-slate-300 group-hover:text-[#D3003B]">{{ $stageLabel }}</span>
-                        <span class="font-bold tabular-nums text-slate-900 dark:text-white">{{ $cnt }}</span>
-                    </div>
-                    <div class="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                        <div class="h-full bg-[#1E40AF] group-hover:bg-[#D3003B] transition-all" style="width: {{ $widthPct }}%"></div>
-                    </div>
-                </a>
+<div class="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
+    <section class="panel xl:col-span-2">
+        <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4"><div><h2 class="text-base font-semibold text-slate-900">Needs your attention</h2><p class="mt-1 text-sm text-slate-500">Keep the next step moving.</p></div><a href="{{ route('tasks.index') }}" class="text-sm font-medium text-blue-700 hover:underline">View tasks</a></div>
+        <div class="grid gap-0 divide-y divide-slate-100 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            @foreach([
+                [$ov['pending_follow_ups'], 'Pending follow-ups', 'tasks.index', ['filter' => 'pending'], 'clock'],
+                [$ov['pending_client_feedback'], 'Awaiting client feedback', 'submissions.index', ['decision' => 'pending_review'], 'send'],
+                [$ov['overdue_requirements'], 'Overdue jobs', 'jobs.index', ['overdue' => 1], 'briefcase'],
+            ] as [$count, $label, $target, $params, $icon])
+            <a href="{{ route($target, $params) }}" class="flex items-start gap-3 p-5 hover:bg-slate-50"><x-icon :name="$icon" class="mt-1 text-slate-400" /><div><div class="text-2xl font-semibold tabular-nums {{ $count ? 'text-amber-700' : 'text-slate-900' }}">{{ $count }}</div><p class="mt-1 text-sm text-slate-600">{{ $label }}</p></div></a>
             @endforeach
         </div>
-    </div>
-
-    <!-- Conversion Intelligence & Documented Calculation Formulas -->
-    <div class="lg:col-span-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 flex flex-col justify-between">
-        <div>
-            <h2 class="text-sm font-bold text-slate-900 dark:text-white mb-1">Stage Conversion Intelligence</h2>
-            <p class="text-xs text-slate-500 mb-4">Verified distinct-application ratios with explicit formulas</p>
-            <div class="space-y-4 text-xs">
-                @foreach([
-                    ['submission_to_shortlist', 'Submission → Client Shortlist', $conv['submission_to_shortlist']],
-                    ['shortlist_to_interview', 'Shortlist → Interview', $conv['shortlist_to_interview']],
-                    ['interview_to_selection', 'Interview → Final Selection', $conv['interview_to_selection']],
-                    ['offer_acceptance_ratio', 'Offer Release → Acceptance Ratio', $conv['offer_acceptance_ratio']],
-                    ['offer_to_joining', 'Offer Accepted → Confirmed Joining', $conv['offer_to_joining']],
-                ] as [$fKey, $label, $pct])
-                    <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-800">
-                        <div class="flex items-center justify-between">
-                            <span class="font-semibold text-slate-800 dark:text-slate-200">{{ $label }}</span>
-                            <span class="text-sm font-bold text-[#D3003B] tabular-nums">{{ $pct }}%</span>
-                        </div>
-                        <div class="text-[10px] text-slate-400 mt-1 font-mono">Formula: {{ $formulas[$fKey] }}</div>
-                    </div>
-                @endforeach
-            </div>
+        <div class="border-t border-slate-100 px-5">
+            @forelse($pendingTasks->take(4) as $task)
+            <div class="flex items-center justify-between gap-3 border-b border-slate-100 py-4 last:border-0"><div class="min-w-0"><a href="{{ route('tasks.index', ['filter' => 'pending']) }}" class="text-sm font-medium text-slate-900 hover:text-blue-700">{{ $task->title }}</a><p class="mt-1 text-xs text-slate-500">{{ $task->assignee?->name ?? 'Unassigned' }} · {{ $task->due_date?->format('d M') ?? 'No due date' }}</p></div><span class="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">{{ ucfirst($task->priority) }}</span></div>
+            @empty
+            <div class="flex items-center gap-3 py-6"><span class="rounded-full bg-emerald-50 p-2 text-emerald-700"><x-icon name="checkmark" /></span><div><p class="text-sm font-medium text-slate-800">You’re all caught up</p><p class="mt-1 text-sm text-slate-500">New follow-ups will appear here.</p></div></div>
+            @endforelse
         </div>
-    </div>
+    </section>
+    <section class="panel">
+        <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4"><div><h2 class="text-base font-semibold text-slate-900">Today’s schedule</h2><p class="mt-1 text-sm text-slate-500">Interviews · India Standard Time</p></div><a href="{{ route('calendar') }}" class="icon-button" aria-label="Open calendar"><x-icon name="calendar" /></a></div>
+        <div class="px-5">
+            @forelse($todaysInterviews->take(4) as $interview)
+            <a href="{{ route('interviews.index', ['date' => now()->toDateString()]) }}" class="flex items-start gap-3 border-b border-slate-100 py-4 last:border-0"><span class="rounded-lg bg-blue-50 px-2 py-2 text-xs font-semibold text-blue-800">{{ substr($interview->interview_time ?? '', 0, 5) }}</span><div class="min-w-0"><p class="text-sm font-semibold text-slate-900">{{ $interview->candidate?->full_name }}</p><p class="mt-1 text-xs text-slate-500">{{ $interview->round_name }}</p><p class="mt-1 text-xs text-slate-500">{{ $interview->jobRequirement?->title }}</p></div></a>
+            @empty
+            <div class="empty-state"><x-icon name="calendar" class="mx-auto mb-3 size-7 text-slate-300" /><p>No interviews today.</p><a href="{{ route('interviews.index') }}" class="mt-3 inline-block font-medium text-blue-700">View upcoming interviews</a></div>
+            @endforelse
+        </div>
+    </section>
 </div>
-
-<!-- Recruiter Performance & Client Hiring Tables -->
-<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-    <div class="lg:col-span-7 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-        <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Recruiter Productivity & Placement Leaderboard</h3>
-            <a href="{{ route('management.recruiter-performance') }}" class="text-xs text-[#1E40AF] hover:underline">Full View →</a>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs">
-                <thead class="bg-slate-50 dark:bg-slate-800/60 text-slate-500 uppercase text-[10px]">
-                    <tr>
-                        <th class="px-4 py-2.5">Recruiter</th>
-                        <th class="px-4 py-2.5 text-right">Sourced</th>
-                        <th class="px-4 py-2.5 text-right">Calls</th>
-                        <th class="px-4 py-2.5 text-right">Submissions</th>
-                        <th class="px-4 py-2.5 text-right">Active Apps</th>
-                        <th class="px-4 py-2.5 text-right">Joined</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 dark:divide-slate-800 tabular-nums">
-                    @foreach($analytics['recruiter_performance'] as $rec)
-                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                            <td class="px-4 py-2.5 font-medium text-slate-900 dark:text-white">{{ $rec->name }}</td>
-                            <td class="px-4 py-2.5 text-right">{{ $rec->sourced_candidates_count }}</td>
-                            <td class="px-4 py-2.5 text-right">{{ $rec->call_logs_count }}</td>
-                            <td class="px-4 py-2.5 text-right font-semibold">{{ $rec->client_submissions_count }}</td>
-                            <td class="px-4 py-2.5 text-right">{{ $rec->active_applications_count }}</td>
-                            <td class="px-4 py-2.5 text-right font-bold text-emerald-600">{{ $rec->joined_applications_count }}</td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
+<section class="panel mb-6 p-5 sm:p-6">
+    <div class="mb-5 flex flex-wrap items-start justify-between gap-4"><div><h2 class="text-base font-semibold text-slate-900">Hiring pipeline</h2><p class="mt-1 text-sm text-slate-500">Applications at each stage. Select a stage to view them.</p></div><a href="{{ route('pipeline.index') }}" class="btn-secondary"><x-icon name="pipeline" class="size-4" />Open pipeline</a></div>
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
+        @foreach([
+            ['sourced', 'Sourced'], ['screened', 'Screened'], ['submitted', 'Submitted'], ['client_shortlisted', 'Shortlisted'], ['interview_scheduled', 'Interview scheduled'], ['offer_accepted', 'Offer accepted'], ['joined', 'Joined'],
+        ] as [$stage, $label])
+        <a href="{{ route('applications.index', ['stage' => $stage]) }}" class="rounded-lg border border-slate-200 p-4 hover:border-blue-300 hover:bg-blue-50/50"><div class="mb-3 h-1 w-7 rounded-full {{ $stage === 'joined' ? 'bg-emerald-500' : 'bg-blue-400' }}"></div><p class="text-2xl font-semibold tabular-nums">{{ $analytics['funnel'][$stage] ?? 0 }}</p><p class="mt-2 text-sm text-slate-500">{{ $label }}</p></a>
+        @endforeach
     </div>
-
-    <div class="lg:col-span-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-        <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Client Hiring Performance</h3>
-            <a href="{{ route('management.client-performance') }}" class="text-xs text-[#1E40AF] hover:underline">All Clients →</a>
+    <p class="mt-4 text-xs text-slate-500">Other stages and paused applications are available in the full pipeline.</p>
+</section>
+<details class="panel" {{ count(array_filter($filters)) ? 'open' : '' }}>
+    <summary class="flex items-center justify-between gap-3 p-5"><span><span class="block text-base font-semibold">Performance & detailed reports</span><span class="mt-1 block text-sm text-slate-500">Filter by period, client, team or recruiter.</span></span><x-icon name="chevron" class="text-slate-400" /></summary>
+    <div class="border-t border-slate-200 p-5">
+        <form method="GET" action="{{ route('dashboard') }}" class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" x-data="{ period: @js($filters['period'] ?? 'all') }">
+            <label class="text-sm font-medium text-slate-600">Period<select name="period" x-model="period" class="field mt-1">@foreach(['all' => 'All time', 'today' => 'Today', 'yesterday' => 'Yesterday', 'this_week' => 'This week', 'this_month' => 'This month', 'custom' => 'Custom dates'] as $key => $label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</select></label>
+            <label x-show="period === 'custom'" x-cloak class="text-sm font-medium text-slate-600">From date<input type="date" name="from_date" value="{{ $filters['from_date'] ?? '' }}" :disabled="period !== 'custom'" :required="period === 'custom'" class="field mt-1"></label>
+            <label x-show="period === 'custom'" x-cloak class="text-sm font-medium text-slate-600">To date<input type="date" name="to_date" value="{{ $filters['to_date'] ?? '' }}" :disabled="period !== 'custom'" :required="period === 'custom'" class="field mt-1"></label>
+            @foreach([['client_id', 'Client', $clients, 'company_name'], ['team_id', 'Team', $teams, 'name'], ['recruiter_id', 'Recruiter', $recruiters, 'name'], ['job_id', 'Job', $jobs, 'title']] as [$name, $label, $options, $field])
+            <label class="text-sm font-medium text-slate-600">{{ $label }}<select name="{{ $name }}" class="field mt-1"><option value="">All {{ strtolower($label) }}s</option>@foreach($options as $option)<option value="{{ $option->id }}" @selected(($filters[$name] ?? '') == $option->id)>{{ $option->$field }}</option>@endforeach</select></label>
+            @endforeach
+            <div class="flex items-end gap-2"><button type="submit" class="btn-primary">Apply filters</button><a href="{{ route('dashboard') }}" class="btn-secondary">Reset</a></div>
+        </form>
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            @foreach(['submission_to_shortlist' => 'Submission to shortlist', 'shortlist_to_interview' => 'Shortlist to interview', 'interview_to_selection' => 'Interview to selection', 'offer_acceptance_ratio' => 'Offer acceptance', 'offer_to_joining' => 'Offer to joining'] as $key => $label)
+            <div class="rounded-lg border border-slate-200 p-4"><div class="flex items-center justify-between gap-2"><span class="text-sm text-slate-600">{{ $label }}</span><strong class="text-lg font-semibold text-blue-800">{{ $conv[$key] }}%</strong></div><details class="mt-2 text-xs text-slate-500"><summary>How this is calculated</summary><p class="mt-2">{{ $analytics['formulas'][$key] }}</p></details></div>
+            @endforeach
         </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs">
-                <thead class="bg-slate-50 dark:bg-slate-800/60 text-slate-500 uppercase text-[10px]">
-                    <tr>
-                        <th class="px-4 py-2.5">Client</th>
-                        <th class="px-4 py-2.5 text-right">Jobs</th>
-                        <th class="px-4 py-2.5 text-right">Submitted</th>
-                        <th class="px-4 py-2.5 text-right">Joined</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 dark:divide-slate-800 tabular-nums">
-                    @foreach($analytics['client_performance'] as $cl)
-                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                            <td class="px-4 py-2.5 font-medium">
-                                <a href="{{ route('clients.show', $cl) }}" class="text-slate-900 dark:text-white hover:text-[#D3003B]">{{ $cl->company_name }}</a>
-                            </td>
-                            <td class="px-4 py-2.5 text-right">{{ $cl->job_requirements_count }}</td>
-                            <td class="px-4 py-2.5 text-right">{{ $cl->client_submissions_count }}</td>
-                            <td class="px-4 py-2.5 text-right font-bold text-emerald-600">{{ $cl->joined_count }}</td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
+        <div class="mt-5 flex flex-wrap gap-3"><a href="{{ route('management.recruiter-performance') }}" class="btn-secondary">Recruiter performance</a><a href="{{ route('management.client-performance') }}" class="btn-secondary">Client performance</a><a href="{{ route('reports.index') }}" class="btn-primary">View reports</a></div>
     </div>
-</div>
+</details>
 @endsection

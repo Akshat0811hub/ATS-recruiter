@@ -1,7 +1,7 @@
 @extends('layouts.app')
-@section('title', 'Recruitment Pipeline Kanban')
-@section('page_title', 'Interactive Recruitment Pipeline (Kanban & Table View)')
-@section('page_subtitle', 'Sourced → Contacted → Interested → Screened → Submitted → Shortlisted → Interview → Selected → Offer → Joined')
+@section('title', 'Hiring pipeline')
+@section('page_title', 'Hiring pipeline')
+@section('page_subtitle', 'Move applications forward and see what needs to happen next.')
 
 @section('content')
 <div x-data="{
@@ -62,6 +62,7 @@
     @if($viewMode === 'table')
         <!-- Table View -->
         <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div class="overflow-x-auto">
             <table class="w-full text-left text-xs">
                 <thead class="bg-slate-50 dark:bg-slate-800/60 text-slate-500 uppercase text-[10px]">
                     <tr>
@@ -97,6 +98,7 @@
                     @endforeach
                 </tbody>
             </table>
+            </div>
         </div>
     @else
         <!-- Visual Kanban Board (13 Main Lifecycle Stages + Alternative States) -->
@@ -134,7 +136,7 @@
                                 </div>
                                 <div class="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100 dark:border-slate-800 tabular-nums">
                                     <span>{{ $app->recruiter?->name ?? 'Unassigned' }}</span>
-                                    <span>{{ $app->notice_period_days ?? 30 }}d notice</span>
+                                    <span>{{ $app->notice_period_days !== null ? $app->notice_period_days.'d notice' : 'Notice N/A' }}</span>
                                 </div>
                                 <form id="transition-form-{{ $app->id }}" method="POST" action="{{ route('applications.transition', $app) }}" class="pt-1 flex items-center gap-1">
                                     @csrf

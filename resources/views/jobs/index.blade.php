@@ -1,11 +1,11 @@
 @extends('layouts.app')
-@section('title', 'Job Requirements')
-@section('page_title', 'Client Requirements & Job Management')
-@section('page_subtitle', 'Track vacancy counts (required, joined, remaining), configurable interview workflows, and assigned recruiters')
+@section('title', 'Jobs')
+@section('page_title', 'Jobs')
+@section('page_subtitle', 'Manage open roles, assign recruiters and track remaining vacancies.')
 
 @section('content')
 <div x-data="{
-    showCreateModal: {{ request()->boolean('create') ? 'true' : 'false' }},
+    showCreateModal: {{ request()->boolean('create') || $errors->any() ? 'true' : 'false' }},
     rounds: [
         { name: 'Round 1: HR Screening', mode: 'telephonic' },
         { name: 'Round 2: Technical Interview', mode: 'video' },
@@ -115,7 +115,7 @@
 
     <!-- Create Job Requirement Modal -->
     @if(auth()->user()->hasRole(['super_admin', 'manager', 'team_leader']))
-    <div x-show="showCreateModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 overflow-y-auto">
+    <div x-show="showCreateModal" x-cloak role="dialog" aria-modal="true" aria-label="Add job" @keydown.escape.window="showCreateModal = false" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 overflow-y-auto">
         <div @click.away="showCreateModal = false" class="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 max-h-[90vh] overflow-y-auto">
             <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
                 <h3 class="text-sm font-bold text-slate-900 dark:text-white">Create Job Requirement & Configurable Interview Workflow</h3>
@@ -123,6 +123,12 @@
             </div>
             <form method="POST" action="{{ route('jobs.store') }}" enctype="multipart/form-data" class="mt-4 space-y-4 text-xs">
                 @csrf
+                @if($errors->any())
+                    <div class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-800">
+                        <p class="font-semibold">Please check the job requirement details below:</p>
+                        <ul class="mt-1 list-inside list-disc">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+                    </div>
+                @endif
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                     <div>
                         <label class="block font-semibold mb-1">Client Organisation *</label>

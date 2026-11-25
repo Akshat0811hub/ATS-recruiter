@@ -1,7 +1,7 @@
 @extends('layouts.app')
-@section('title', 'My Work — Recruiter Workspace')
-@section('page_title', 'My Work — Personalised Recruiter Workspace')
-@section('page_subtitle', 'Daily targets, assigned requirements, quick candidate entry, and priority follow-ups')
+@section('title', 'My work')
+@section('page_title', 'My work')
+@section('page_subtitle', 'Your assigned jobs, daily priorities and upcoming follow-ups.')
 
 @section('content')
 <!-- Daily Target Progress Cards -->
@@ -68,11 +68,18 @@
                 </div>
                 <div>
                     <label class="block font-semibold mb-1">Total Exp (Yrs)</label>
-                    <input type="number" step="0.1" name="total_experience" value="3" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent">
+                    <input type="number" step="0.1" min="0" name="total_experience" value="{{ old('total_experience') }}" placeholder="Optional" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent">
                 </div>
                 <div>
+                    <label class="block font-semibold mb-1">Consent Status</label>
+                    <select name="consent_status" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900">
+                        <option value="pending" @selected(old('consent_status', 'pending') === 'pending')>Consent Pending</option>
+                        <option value="granted" @selected(old('consent_status') === 'granted')>Consent Granted</option>
+                    </select>
+                </div>
+                <div class="col-span-2">
                     <label class="block font-semibold mb-1">Private Resume (PDF/DOCX)</label>
-                    <input type="file" name="resume_file" class="w-full text-[11px]">
+                    <input type="file" name="resume_file" accept=".pdf,.doc,.docx" class="w-full text-[11px]">
                 </div>
             </div>
             <button type="submit" class="px-4 py-2 rounded-lg bg-[#D3003B] text-white font-semibold">Save Candidate & Check Duplicates</button>

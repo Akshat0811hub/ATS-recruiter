@@ -1,10 +1,10 @@
 @extends('layouts.app')
-@section('title', 'User & Employee Management')
-@section('page_title', 'User Management & Controlled Account Invitations')
-@section('page_subtitle', 'Create, invite, activate, deactivate, and manage internal employees and external client portal users')
+@section('title', 'Users')
+@section('page_title', 'Users')
+@section('page_subtitle', 'Invite colleagues and clients, and manage account access.')
 
 @section('content')
-<div x-data="{ showCreateUser: false }">
+<div x-data="{ showCreateUser: {{ request()->boolean('create') || $errors->any() ? 'true' : 'false' }} }">
     <div class="mb-5 flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
         <form method="GET" action="{{ route('admin.users') }}" class="flex flex-wrap items-center gap-2.5">
             <input type="text" name="search" value="{{ request('search') }}" placeholder="Search name, email, employee code..." class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent w-64">
@@ -72,7 +72,7 @@
     </div>
 
     <!-- Create User Modal -->
-    <div x-show="showCreateUser" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
+    <div x-show="showCreateUser" x-cloak role="dialog" aria-modal="true" aria-label="admin form" @keydown.escape.window="showCreateUser = false" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
         <div @click.away="showCreateUser = false" class="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 text-xs">
             <h3 class="text-sm font-bold text-slate-900 dark:text-white pb-3 border-b border-slate-200">Create / Invite Employee or Client HR Account</h3>
             <form method="POST" action="{{ route('admin.users.store') }}" class="mt-4 space-y-3.5">

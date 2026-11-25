@@ -1,7 +1,7 @@
 @extends('layouts.app')
-@section('title', 'Notification Centre')
-@section('page_title', 'In-App Notification Centre')
-@section('page_subtitle', 'New requirements, recruiter assignments, client shortlists, interviews, offer updates, and system alerts')
+@section('title', 'Notifications')
+@section('page_title', 'Notifications')
+@section('page_subtitle', 'Your latest recruitment updates and reminders.')
 
 @section('content')
 <div class="mb-4 flex items-center justify-between text-xs">

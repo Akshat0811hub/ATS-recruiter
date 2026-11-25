@@ -1,7 +1,7 @@
 @extends('layouts.app')
-@section('title', 'Client Profile Submissions')
-@section('page_title', 'Client Profile Submissions & Feedback Tracker')
-@section('page_subtitle', 'Immutable submission snapshots, bulk profile submission, and client shortlist/rejection decisions')
+@section('title', 'Submissions')
+@section('page_title', 'Submissions')
+@section('page_subtitle', 'Send shortlisted profiles to clients and track their feedback.')
 
 @section('content')
 <div x-data="{ showBulkModal: false }">
@@ -56,9 +56,9 @@
                                 <div class="font-semibold">{{ $sub->jobRequirement?->title }}</div>
                                 <div class="text-[11px] text-slate-500">{{ $sub->client?->company_name }} • By {{ $sub->recruiter?->name }}</div>
                             </td>
-                            <td class="px-4 py-3 text-right">
-                                <div>{{ number_format((float)$sub->snapshot_current_ctc) }} → <strong>{{ number_format((float)$sub->snapshot_expected_ctc) }}</strong></div>
-                                <div class="text-[11px] text-slate-500">{{ $sub->snapshot_notice_period_days }}d notice</div>
+                            <td class="px-4 py-3 text-right whitespace-nowrap">
+                                <div>{{ $sub->snapshot_current_ctc ? number_format((float)$sub->snapshot_current_ctc) : '—' }} → <strong>{{ $sub->snapshot_expected_ctc ? number_format((float)$sub->snapshot_expected_ctc) : '—' }}</strong></div>
+                                <div class="text-[11px] text-slate-500">{{ $sub->snapshot_notice_period_days !== null ? $sub->snapshot_notice_period_days.'d notice' : 'Notice N/A' }}</div>
                             </td>
                             <td class="px-4 py-3">
                                 <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase {{ in_array($sub->client_decision, ['shortlisted', 'interview_requested']) ? 'bg-emerald-100 text-emerald-800' : ($sub->client_decision === 'rejected' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800') }}">

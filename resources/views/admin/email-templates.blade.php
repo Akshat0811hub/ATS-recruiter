@@ -1,7 +1,7 @@
 @extends('layouts.app')
-@section('title', 'Email Templates')
-@section('page_title', 'Configurable SMTP Email Templates')
-@section('page_subtitle', 'Customise automated notification templates across all 11 recruitment lifecycle stages')
+@section('title', 'Email templates')
+@section('page_title', 'Email templates')
+@section('page_subtitle', 'Edit the messages used for recruitment updates.')
 
 @section('content')
 <div class="space-y-4 text-xs">

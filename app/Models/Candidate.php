@@ -66,8 +66,13 @@ class Candidate extends Model
             $candidate->normalized_mobile = static::normalizePhone($candidate->mobile_number) ?? $candidate->mobile_number;
             $candidate->normalized_alternate = static::normalizePhone($candidate->alternate_number);
             $candidate->normalized_email = static::normalizeEmail($candidate->email);
-            if (empty($candidate->consent_recorded_at)) {
+            $candidate->total_experience = $candidate->total_experience ?? 0;
+            $candidate->relevant_experience = $candidate->relevant_experience ?? $candidate->total_experience ?? 0;
+            $candidate->consent_status = $candidate->consent_status ?: 'pending';
+            if ($candidate->consent_status === 'granted' && empty($candidate->consent_recorded_at)) {
                 $candidate->consent_recorded_at = now();
+            } elseif ($candidate->consent_status !== 'granted') {
+                $candidate->consent_recorded_at = null;
             }
         });
 
@@ -75,6 +80,14 @@ class Candidate extends Model
             $candidate->normalized_mobile = static::normalizePhone($candidate->mobile_number) ?? $candidate->mobile_number;
             $candidate->normalized_alternate = static::normalizePhone($candidate->alternate_number);
             $candidate->normalized_email = static::normalizeEmail($candidate->email);
+            $candidate->total_experience = $candidate->total_experience ?? 0;
+            $candidate->relevant_experience = $candidate->relevant_experience ?? $candidate->total_experience ?? 0;
+            $candidate->consent_status = $candidate->consent_status ?: 'pending';
+            if ($candidate->isDirty('consent_status')) {
+                $candidate->consent_recorded_at = $candidate->consent_status === 'granted'
+                    ? ($candidate->consent_recorded_at ?? now())
+                    : null;
+            }
         });
     }
 

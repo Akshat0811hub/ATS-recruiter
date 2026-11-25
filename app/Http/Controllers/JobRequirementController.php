@@ -12,6 +12,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Services\AuditService;
 use App\Services\EmailService;
+use App\Services\RecruitmentAccess;
 use App\Services\StorageManagementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,7 +28,7 @@ class JobRequirementController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        $query = JobRequirement::with(['client', 'assignedTeam', 'assignments.recruiter'])
+        $query = RecruitmentAccess::query(JobRequirement::class)->with(['client', 'assignedTeam', 'assignments.recruiter'])
             ->withCount(['applications', 'submissions', 'interviews', 'offers', 'joinings']);
 
         if ($user->isRecruiter()) {
@@ -52,10 +53,17 @@ class JobRequirementController extends Controller
             $query->where('priority', $priority);
         }
 
+        if ($request->boolean('active') || $request->boolean('overdue')) {
+            $query->whereNotIn('status', ['draft', 'successfully_closed', 'cancelled', 'on_hold'])->where('remaining_count', '>', 0);
+        }
+        if ($request->boolean('overdue')) {
+            $query->whereDate('expected_closure_date', '<', today()->toDateString());
+        }
+
         $jobs = $query->orderByDesc('id')->paginate(25)->withQueryString();
-        $clients = Client::where('status', 'active')->orderBy('company_name')->get();
-        $teams = Team::where('is_active', true)->get();
-        $recruiters = User::whereHas('role', fn ($q) => $q->whereIn('slug', ['recruiter', 'team_leader']))->where('is_active', true)->get();
+        $clients = RecruitmentAccess::query(Client::class)->where('status', 'active')->orderBy('company_name')->get();
+        $teams = RecruitmentAccess::query(Team::class)->where('is_active', true)->get();
+        $recruiters = RecruitmentAccess::query(User::class)->whereHas('role', fn ($q) => $q->whereIn('slug', ['recruiter', 'team_leader']))->where('is_active', true)->get();
 
         return view('jobs.index', compact('jobs', 'clients', 'teams', 'recruiters'));
     }
@@ -221,7 +229,7 @@ class JobRequirementController extends Controller
             'joinings',
         ]);
 
-        $recruiters = User::whereHas('role', fn ($q) => $q->whereIn('slug', ['recruiter', 'team_leader']))
+        $recruiters = RecruitmentAccess::query(User::class)->whereHas('role', fn ($q) => $q->whereIn('slug', ['recruiter', 'team_leader']))
             ->where('is_active', true)
             ->withCount('jobAssignments')
             ->get();
@@ -319,7 +327,7 @@ class JobRequirementController extends Controller
                     ]
                 );
 
-                $recruiter = User::find($recruiterId);
+                $recruiter = RecruitmentAccess::query(User::class)->find($recruiterId);
                 if ($recruiter) {
                     AtsNotification::sendToUser(
                         $recruiter,

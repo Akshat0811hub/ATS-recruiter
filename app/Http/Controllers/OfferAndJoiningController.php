@@ -12,6 +12,7 @@ use App\Models\ReplacementRecord;
 use App\Services\AuditService;
 use App\Services\EmailService;
 use App\Services\PipelineService;
+use App\Services\RecruitmentAccess;
 use App\Services\StorageManagementService;
 use App\Services\VacancyClosureService;
 use Illuminate\Http\Request;
@@ -29,7 +30,7 @@ class OfferAndJoiningController extends Controller
 
     public function offers(Request $request)
     {
-        $query = Offer::with(['candidate', 'jobRequirement', 'client', 'recruiter', 'offerLetterStorage', 'revisions']);
+        $query = RecruitmentAccess::query(Offer::class)->with(['candidate', 'jobRequirement', 'client', 'recruiter', 'offerLetterStorage', 'revisions']);
 
         if ($status = $request->query('status')) {
             $query->where('status', $status);
@@ -39,8 +40,8 @@ class OfferAndJoiningController extends Controller
         }
 
         $offers = $query->orderByDesc('id')->paginate(25)->withQueryString();
-        $clients = Client::orderBy('company_name')->get();
-        $selectedApplications = CandidateApplication::with(['candidate', 'jobRequirement.client'])
+        $clients = RecruitmentAccess::query(Client::class)->orderBy('company_name')->get();
+        $selectedApplications = RecruitmentAccess::query(CandidateApplication::class)->with(['candidate', 'jobRequirement.client'])
             ->whereIn('pipeline_stage', ['interview_in_progress', 'selected', 'offer_released', 'offer_accepted'])
             ->orderByDesc('id')
             ->get();
@@ -78,7 +79,7 @@ class OfferAndJoiningController extends Controller
                 $offerLetterStorageId = $rec->id;
             }
 
-            $existingOffer = Offer::where('candidate_application_id', $application->id)->first();
+            $existingOffer = RecruitmentAccess::query(Offer::class)->where('candidate_application_id', $application->id)->first();
             $salaryChanged = $existingOffer && (
                 (float) $existingOffer->offered_salary !== (float) $data['offered_salary']
                 || (float) ($existingOffer->negotiated_salary ?? 0) !== (float) ($data['negotiated_salary'] ?? 0)
@@ -170,7 +171,7 @@ class OfferAndJoiningController extends Controller
 
     public function joinings(Request $request)
     {
-        $query = JoiningRecord::with([
+        $query = RecruitmentAccess::query(JoiningRecord::class)->with([
             'candidate',
             'jobRequirement',
             'client',
@@ -188,8 +189,8 @@ class OfferAndJoiningController extends Controller
         }
 
         $joinings = $query->orderByDesc('id')->paginate(25)->withQueryString();
-        $replacements = ReplacementRecord::with(['client', 'jobRequirement', 'originalCandidate', 'authoriser'])->latest()->limit(15)->get();
-        $clients = Client::orderBy('company_name')->get();
+        $replacements = RecruitmentAccess::query(ReplacementRecord::class)->with(['client', 'jobRequirement', 'originalCandidate', 'authoriser'])->latest()->limit(15)->get();
+        $clients = RecruitmentAccess::query(Client::class)->orderBy('company_name')->get();
 
         return view('joinings.index', compact('joinings', 'replacements', 'clients'));
     }

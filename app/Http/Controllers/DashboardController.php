@@ -15,6 +15,7 @@ use App\Models\Task;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\DashboardAnalyticsService;
+use App\Services\RecruitmentAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -30,24 +31,30 @@ class DashboardController extends Controller
             return redirect()->route('portal.dashboard');
         }
 
-        $filters = $request->only(['period', 'from_date', 'to_date', 'recruiter_id', 'team_id', 'client_id', 'job_id', 'location', 'status']);
+        $filters = $request->validate([
+            'period' => ['nullable', 'in:all,today,yesterday,this_week,this_month,custom'],
+            'from_date' => ['nullable', 'required_if:period,custom', 'date_format:Y-m-d'],
+            'to_date' => ['nullable', 'required_if:period,custom', 'date_format:Y-m-d', 'after_or_equal:from_date'],
+            'recruiter_id' => ['nullable', 'integer'], 'team_id' => ['nullable', 'integer'],
+            'client_id' => ['nullable', 'integer'], 'job_id' => ['nullable', 'integer'],
+        ]);
         if ($user->isRecruiter()) {
             $filters['recruiter_id'] = $user->id;
         }
 
         $analytics = $this->analyticsService->getExecutiveAnalytics($filters);
-        $clients = Client::orderBy('company_name')->get(['id', 'company_name', 'client_code']);
-        $teams = Team::orderBy('name')->get(['id', 'name', 'code']);
-        $recruiters = User::whereHas('role', fn ($q) => $q->whereIn('slug', ['recruiter', 'team_leader']))->orderBy('name')->get(['id', 'name']);
-        $jobs = JobRequirement::orderByDesc('id')->limit(50)->get(['id', 'job_code', 'title']);
+        $clients = RecruitmentAccess::query(Client::class)->orderBy('company_name')->get(['id', 'company_name', 'client_code']);
+        $teams = RecruitmentAccess::query(Team::class)->orderBy('name')->get(['id', 'name', 'code']);
+        $recruiters = RecruitmentAccess::query(User::class)->whereHas('role', fn ($q) => $q->whereIn('slug', ['recruiter', 'team_leader']))->orderBy('name')->get(['id', 'name']);
+        $jobs = RecruitmentAccess::query(JobRequirement::class)->orderByDesc('id')->limit(50)->get(['id', 'job_code', 'title']);
 
-        $todaysInterviews = InterviewRecord::with(['candidate', 'jobRequirement', 'client'])
+        $todaysInterviews = RecruitmentAccess::query(InterviewRecord::class)->with(['candidate', 'jobRequirement', 'client'])
             ->whereDate('interview_date', Carbon::today()->toDateString())
             ->orderBy('interview_time')
             ->limit(10)
             ->get();
 
-        $pendingTasks = Task::with(['candidate', 'jobRequirement', 'assignee'])
+        $pendingTasks = RecruitmentAccess::query(Task::class)->with(['candidate', 'jobRequirement', 'assignee'])
             ->whereIn('status', ['pending', 'in_progress'])
             ->when($user->isRecruiter(), fn ($q) => $q->where('assigned_to', $user->id))
             ->orderBy('due_date')
@@ -78,55 +85,55 @@ class DashboardController extends Controller
             ->orderByDesc('is_primary')
             ->get();
 
-        $sourcedToday = Candidate::where('assigned_recruiter_id', $user->id)
+        $sourcedToday = RecruitmentAccess::query(Candidate::class)->where('assigned_recruiter_id', $user->id)
             ->whereBetween('created_at', [$todayStart, $todayEnd])
             ->count();
 
-        $callsToday = CallLog::where('recruiter_id', $user->id)
+        $callsToday = RecruitmentAccess::query(CallLog::class)->where('recruiter_id', $user->id)
             ->whereBetween('called_at', [$todayStart, $todayEnd])
             ->count();
 
-        $submittedToday = ClientSubmission::where('recruiter_id', $user->id)
+        $submittedToday = RecruitmentAccess::query(ClientSubmission::class)->where('recruiter_id', $user->id)
             ->whereBetween('submitted_at', [$todayStart, $todayEnd])
             ->count();
 
-        $pendingClientFeedback = ClientSubmission::with(['candidate', 'jobRequirement', 'client'])
+        $pendingClientFeedback = RecruitmentAccess::query(ClientSubmission::class)->with(['candidate', 'jobRequirement', 'client'])
             ->where('recruiter_id', $user->id)
             ->where('client_decision', 'pending_review')
             ->latest('submitted_at')
             ->limit(10)
             ->get();
 
-        $todaysInterviews = InterviewRecord::with(['candidate', 'jobRequirement', 'client'])
+        $todaysInterviews = RecruitmentAccess::query(InterviewRecord::class)->with(['candidate', 'jobRequirement', 'client'])
             ->whereDate('interview_date', Carbon::today()->toDateString())
             ->whereHas('candidateApplication', fn ($q) => $q->where('recruiter_id', $user->id))
             ->orderBy('interview_time')
             ->get();
 
-        $todaysFollowUps = Task::with(['candidate', 'jobRequirement'])
+        $todaysFollowUps = RecruitmentAccess::query(Task::class)->with(['candidate', 'jobRequirement'])
             ->where('assigned_to', $user->id)
             ->whereIn('status', ['pending', 'in_progress'])
             ->whereDate('due_date', Carbon::today()->toDateString())
             ->get();
 
-        $overdueTasks = Task::with(['candidate', 'jobRequirement'])
+        $overdueTasks = RecruitmentAccess::query(Task::class)->with(['candidate', 'jobRequirement'])
             ->where('assigned_to', $user->id)
             ->whereIn('status', ['pending', 'in_progress'])
             ->whereDate('due_date', '<', Carbon::today()->toDateString())
             ->get();
 
-        $offerFollowUps = Offer::with(['candidate', 'jobRequirement', 'client'])
+        $offerFollowUps = RecruitmentAccess::query(Offer::class)->with(['candidate', 'jobRequirement', 'client'])
             ->where('recruiter_id', $user->id)
             ->whereIn('status', ['offer_released', 'under_negotiation'])
             ->get();
 
-        $upcomingJoinings = JoiningRecord::with(['candidate', 'jobRequirement', 'client'])
+        $upcomingJoinings = RecruitmentAccess::query(JoiningRecord::class)->with(['candidate', 'jobRequirement', 'client'])
             ->where('recruiter_id', $user->id)
             ->where('status', 'joining_pending')
             ->orderBy('expected_joining_date')
             ->get();
 
-        $recentCandidates = Candidate::where('assigned_recruiter_id', $user->id)
+        $recentCandidates = RecruitmentAccess::query(Candidate::class)->where('assigned_recruiter_id', $user->id)
             ->latest()
             ->limit(15)
             ->get();
@@ -168,29 +175,18 @@ class DashboardController extends Controller
 
     public function calendar(Request $request)
     {
-        $date = $request->query('date', Carbon::today()->toDateString());
-        $interviews = InterviewRecord::with(['candidate', 'jobRequirement', 'client'])
-            ->orderBy('interview_date')
-            ->orderBy('interview_time')
-            ->limit(100)
-            ->get();
-
-        $tasks = Task::with(['candidate', 'jobRequirement', 'assignee'])
-            ->whereIn('status', ['pending', 'in_progress'])
-            ->orderBy('due_date')
-            ->limit(100)
-            ->get();
-
-        $joinings = JoiningRecord::with(['candidate', 'jobRequirement', 'client'])
-            ->where('status', 'joining_pending')
-            ->orderBy('expected_joining_date')
-            ->get();
+        $request->validate(['date' => ['nullable', 'date_format:Y-m-d']]);
+        $date = $request->query('date', today()->toDateString());
+        $interviews = RecruitmentAccess::query(InterviewRecord::class)->with(['candidate', 'jobRequirement', 'client'])->whereDate('interview_date', $date)->orderBy('interview_time')->get();
+        $tasks = RecruitmentAccess::query(Task::class)->with(['candidate', 'jobRequirement', 'assignee'])->whereDate('due_date', $date)->whereIn('status', ['pending', 'in_progress'])->orderBy('due_time')->get();
+        $joinings = RecruitmentAccess::query(JoiningRecord::class)->with(['candidate', 'jobRequirement', 'client'])->whereDate('expected_joining_date', $date)->where('status', 'joining_pending')->get();
 
         return view('dashboard.calendar', compact('date', 'interviews', 'tasks', 'joinings'));
     }
 
     public function globalSearch(Request $request)
     {
+        $request->validate(['q' => ['nullable', 'string', 'max:150']]);
         $q = trim((string) $request->query('q', ''));
         if (strlen($q) < 2) {
             return response()->json(['results' => []]);
@@ -198,25 +194,47 @@ class DashboardController extends Controller
 
         $user = Auth::user();
         if ($user->isClient()) {
-            $jobs = JobRequirement::where('client_id', $user->client_id)
+            $clientResults = collect();
+
+            $jobs = RecruitmentAccess::query(JobRequirement::class)->where('client_id', $user->client_id)
                 ->where(fn ($sub) => $sub->where('title', 'like', "%{$q}%")->orWhere('job_code', 'like', "%{$q}%"))
-                ->limit(8)
-                ->get()
-                ->map(fn ($j) => [
+                ->limit(6)
+                ->get();
+
+            foreach ($jobs as $j) {
+                $clientResults->push([
                     'type' => 'Job Requirement',
                     'code' => $j->job_code,
                     'title' => $j->title,
                     'subtitle' => $j->location,
-                    'url' => route('portal.dashboard'),
+                    'url' => route('portal.dashboard', ['job_id' => $j->id]),
                 ]);
+            }
 
-            return response()->json(['results' => $jobs]);
+            $submissions = RecruitmentAccess::query(ClientSubmission::class)
+                ->with('jobRequirement')
+                ->where('client_id', $user->client_id)
+                ->where(fn ($sub) => $sub->where('snapshot_candidate_name', 'like', "%{$q}%")->orWhere('submission_code', 'like', "%{$q}%"))
+                ->limit(6)
+                ->get();
+
+            foreach ($submissions as $sub) {
+                $clientResults->push([
+                    'type' => 'Submitted Profile',
+                    'code' => $sub->submission_code,
+                    'title' => $sub->snapshot_candidate_name,
+                    'subtitle' => $sub->jobRequirement?->title ?? 'Submitted Candidate',
+                    'url' => route('portal.dashboard', ['job_id' => $sub->job_requirement_id]),
+                ]);
+            }
+
+            return response()->json(['results' => $clientResults->values()]);
         }
 
         $results = collect();
 
         $normPhone = Candidate::normalizePhone($q);
-        $candidates = Candidate::query()
+        $candidates = RecruitmentAccess::query(Candidate::class)
             ->where(function ($sub) use ($q, $normPhone) {
                 $sub->where('full_name', 'like', "%{$q}%")
                     ->orWhere('candidate_code', 'like', "%{$q}%")
@@ -241,7 +259,7 @@ class DashboardController extends Controller
             ]);
         }
 
-        $jobs = JobRequirement::with('client')
+        $jobs = RecruitmentAccess::query(JobRequirement::class)->with('client')
             ->where(fn ($sub) => $sub->where('title', 'like', "%{$q}%")->orWhere('job_code', 'like', "%{$q}%"))
             ->limit(5)
             ->get();
@@ -256,7 +274,7 @@ class DashboardController extends Controller
             ]);
         }
 
-        $clients = Client::where(fn ($sub) => $sub->where('company_name', 'like', "%{$q}%")->orWhere('client_code', 'like', "%{$q}%"))
+        $clients = RecruitmentAccess::query(Client::class)->where(fn ($sub) => $sub->where('company_name', 'like', "%{$q}%")->orWhere('client_code', 'like', "%{$q}%"))
             ->limit(4)
             ->get();
 
@@ -270,9 +288,8 @@ class DashboardController extends Controller
             ]);
         }
 
-        $interviews = InterviewRecord::with(['candidate', 'jobRequirement'])
-            ->where('interview_code', 'like', "%{$q}%")
-            ->orWhere('interviewer_name', 'like', "%{$q}%")
+        $interviews = RecruitmentAccess::query(InterviewRecord::class)->with(['candidate', 'jobRequirement'])
+            ->where(fn ($search) => $search->where('interview_code', 'like', "%{$q}%")->orWhere('interviewer_name', 'like', "%{$q}%"))
             ->limit(3)
             ->get();
 
