@@ -13,8 +13,9 @@
    - Only after explicit owner approval, add a dedicated `A` or `CNAME` DNS record for the subdomain `crm.orbitouch-hr.com` pointing to the Hostinger India server IP.
 2. **hPanel Subdomain & Document Root Configuration:**
    - In Hostinger hPanel → **Websites / Subdomains**, create subdomain `crm.orbitouch-hr.com`.
-   - Deploy the Laravel application outside the public web root (e.g., `/home/uXXXXXXXXX/domains/orbitouch-hr.com/ats_app`) and symlink or point the subdomain document root `/home/uXXXXXXXXX/domains/orbitouch-hr.com/public_html/crm` directly to `ats_app/public`:
+   - Deploy the Laravel application outside the public web root (e.g., `/home/uXXXXXXXXX/domains/orbitouch-hr.com/ats_app`), remove Hostinger's default auto-created empty `crm` folder, and symlink `public_html/crm` directly to `ats_app/public`:
      ```bash
+     rm -rf /home/uXXXXXXXXX/domains/orbitouch-hr.com/public_html/crm
      ln -s /home/uXXXXXXXXX/domains/orbitouch-hr.com/ats_app/public /home/uXXXXXXXXX/domains/orbitouch-hr.com/public_html/crm
      ```
    - This guarantees `.env`, `storage/app/private`, `database/`, and `app/` are completely unreachable via public HTTP requests.
@@ -74,10 +75,10 @@ php artisan view:cache
 
 ## 4. Hostinger Shared-Hosting Cron Configuration
 
-In Hostinger hPanel → **Advanced → Cron Jobs**, add a single 1-minute cron job:
+In Hostinger hPanel → **Advanced → Cron Jobs**, add a single 1-minute cron job (select **Custom** or **PHP 8.3** `/opt/alt/php83/usr/bin/php`):
 
 ```cron
-* * * * * /usr/bin/php /home/uXXXXXXXXX/domains/orbitouch-hr.com/ats_app/artisan schedule:run >> /dev/null 2>&1
+* * * * * /opt/alt/php83/usr/bin/php /home/uXXXXXXXXX/domains/orbitouch-hr.com/ats_app/artisan schedule:run >> /dev/null 2>&1
 ```
 
 This single cron entry orchestrates:

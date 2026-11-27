@@ -5,38 +5,63 @@
 # ==============================================================================
 set -euo pipefail
 
-echo "=== [1/7] Starting OrbiTouch ATS Production Deployment ==="
+# Auto-detect PHP 8.3 / 8.4 CLI on Hostinger Shared Hosting (CloudLinux alt-php)
+if [ -x "/opt/alt/php83/usr/bin/php" ]; then
+    PHP_BIN="/opt/alt/php83/usr/bin/php"
+elif [ -x "/opt/alt/php84/usr/bin/php" ]; then
+    PHP_BIN="/opt/alt/php84/usr/bin/php"
+else
+    PHP_BIN="$(command -v php)"
+fi
 
-# 1. Create pre-deployment encrypted backup snapshot
-echo "=== [2/7] Creating pre-deployment encrypted backup ==="
-php artisan ats:backup --type=full || echo "Initial deployment: skipping backup prior to first migration."
+COMPOSER_PHAR="$(command -v composer2 || command -v composer)"
 
-# 2. Enter brief maintenance mode (renders 503 retry-after=15)
-php artisan down --retry=15 || true
+echo "=== [1/8] Verifying Hostinger PHP & Environment (Using: ${PHP_BIN}) ==="
+"${PHP_BIN}" -r 'if (version_compare(PHP_VERSION, "8.3.0", "<")) { fwrite(STDERR, "ERROR: PHP 8.3+ is required, found ".PHP_VERSION."\n"); exit(1); }'
 
-# 3. Pull latest verified release from main branch
-echo "=== [3/7] Pulling latest verified code from GitHub (origin/main) ==="
+if [ ! -f ".env" ]; then
+    echo "ERROR: .env file not found. Copy .env.example to .env and set DB_* and MAIL_* credentials first." >&2
+    exit 1
+fi
+
+mkdir -p storage/app/private storage/app/backups storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache
+chmod -R 775 storage bootstrap/cache || true
+
+# 1. Create pre-deployment encrypted backup snapshot (skipped automatically on very first install before vendor/migrations)
+echo "=== [2/8] Creating pre-deployment encrypted backup ==="
+if [ -f "vendor/autoload.php" ]; then
+    "${PHP_BIN}" artisan ats:backup --type=full || echo "Initial deployment: skipping backup prior to first migration."
+    "${PHP_BIN}" artisan down --retry=15 || true
+fi
+
+# 2. Pull latest verified release from main branch
+echo "=== [3/8] Pulling latest verified code from GitHub (origin/main) ==="
 git pull origin main
 
-# 4. Install production PHP dependencies (optimized for 40 PHP workers)
-echo "=== [4/7] Installing Composer production dependencies ==="
-composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+# 3. Install production PHP dependencies using the matched PHP 8.3/8.4 CLI
+echo "=== [4/8] Installing Composer production dependencies ==="
+"${PHP_BIN}" "${COMPOSER_PHAR}" install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+
+# 4. Generate APP_KEY automatically on first deployment if empty
+if ! grep -q "^APP_KEY=base64:" .env; then
+    echo "=== [5/8] Generating initial APP_KEY ==="
+    "${PHP_BIN}" artisan key:generate --force
+fi
 
 # 5. Run non-destructive incremental database migrations (NEVER migrate:fresh)
-echo "=== [5/7] Applying incremental database migrations safely ==="
-php artisan migrate --force
+echo "=== [6/8] Applying incremental database migrations & core foundation seed ==="
+"${PHP_BIN}" artisan migrate --force
+"${PHP_BIN}" artisan db:seed --class="Database\\Seeders\\DatabaseSeeder" --force
 
-# 6. Ensure core roles, permissions, and Super Admin account exist
-php artisan db:seed --class="Database\\Seeders\\DatabaseSeeder" --force
+# 6. Optimize Laravel configuration, routes, and Blade views for 1-CPU / 2GB RAM shared hosting
+echo "=== [7/8] Caching configuration, routes, and views ==="
+"${PHP_BIN}" artisan optimize:clear
+"${PHP_BIN}" artisan config:cache
+"${PHP_BIN}" artisan route:cache
+"${PHP_BIN}" artisan view:cache
 
-# 7. Optimize Laravel configuration, routes, and Blade views for 1-CPU / 2GB RAM shared hosting
-echo "=== [6/7] Caching configuration, routes, and views ==="
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
-
-# 8. Exit maintenance mode
-echo "=== [7/7] Bringing OrbiTouch ATS back online ==="
-php artisan up
+# 7. Exit maintenance mode
+echo "=== [8/8] Bringing OrbiTouch ATS online ==="
+"${PHP_BIN}" artisan up || true
 
 echo "=== Deployment Completed Successfully ==="
