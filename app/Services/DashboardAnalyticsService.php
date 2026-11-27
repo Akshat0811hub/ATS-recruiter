@@ -59,8 +59,11 @@ class DashboardAnalyticsService
 
         $teamRecruiterIds = null;
         if ($teamId) {
-            $teamRecruiterIds = RecruitmentAccess::query(User::class)->where('team_id', $teamId)
-                ->orWhereHas('teams', fn ($q) => $q->where('teams.id', $teamId))
+            $teamRecruiterIds = RecruitmentAccess::query(User::class)
+                ->where(function ($q) use ($teamId) {
+                    $q->where('team_id', $teamId)
+                        ->orWhereHas('teams', fn ($tq) => $tq->where('teams.id', $teamId));
+                })
                 ->pluck('id')
                 ->all();
         }

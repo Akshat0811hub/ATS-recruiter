@@ -25,19 +25,19 @@
                 <div class="grid grid-cols-2 gap-2.5 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 tabular-nums">
                     <div>
                         <span class="text-[10px] text-slate-400 block">Relevant / Total Exp</span>
-                        <strong>{{ $sub->snapshot_relevant_experience }} / {{ $sub->snapshot_total_experience }} Yrs</strong>
+                        <strong>{{ $sub->snapshot_relevant_experience ?? 0 }} / {{ $sub->snapshot_total_experience ?? 0 }} Yrs</strong>
                     </div>
                     <div>
                         <span class="text-[10px] text-slate-400 block">Notice Period</span>
-                        <strong>{{ $sub->snapshot_notice_period_days }} Days</strong>
+                        <strong>{{ $sub->snapshot_notice_period_days !== null ? $sub->snapshot_notice_period_days.' Days' : 'Not provided' }}</strong>
                     </div>
                     <div>
                         <span class="text-[10px] text-slate-400 block">Current CTC</span>
-                        <strong>{{ number_format((float)$sub->snapshot_current_ctc) }}</strong>
+                        <strong>{{ $sub->snapshot_current_ctc ? number_format((float)$sub->snapshot_current_ctc) : '—' }}</strong>
                     </div>
                     <div>
                         <span class="text-[10px] text-slate-400 block">Expected CTC</span>
-                        <strong class="text-emerald-600">{{ number_format((float)$sub->snapshot_expected_ctc) }} {{ $sub->snapshot_currency }}</strong>
+                        <strong class="text-emerald-600">{{ $sub->snapshot_expected_ctc ? number_format((float)$sub->snapshot_expected_ctc).' '.$sub->snapshot_currency : '—' }}</strong>
                     </div>
                 </div>
 

@@ -4,7 +4,7 @@
 @section('page_subtitle', 'Schedule interviews, reschedule when needed and record feedback for each round.')
 
 @section('content')
-<div x-data="{ showScheduleModal: {{ request()->boolean('create') || $errors->any() ? 'true' : 'false' }} }">
+<div x-data="{ showScheduleModal: {{ request()->boolean('create') || ($errors->any() && old('_form') === 'schedule_interview') ? 'true' : 'false' }} }">
     <!-- Filter & Schedule Toolbar -->
     <div class="mb-5 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
         <form method="GET" action="{{ route('interviews.index') }}" class="flex flex-wrap items-center gap-2.5">
@@ -124,8 +124,14 @@
             @if($eligibleApplications->isEmpty())
                 <div class="py-6 text-center text-slate-400">No candidate applications currently in Shortlisted or Interview stages.</div>
             @else
-                <form method="POST" :action="'/applications/' + selectedAppId + '/interviews'" class="mt-4 space-y-3.5">
+                <form method="POST" :action="'{{ url('/applications') }}/' + selectedAppId + '/interviews'" @submit="if (!selectedAppId) { $event.preventDefault(); }" class="mt-4 space-y-3.5">
                     @csrf
+                    <input type="hidden" name="_form" value="schedule_interview">
+                    @if($errors->any() && old('_form') === 'schedule_interview')
+                        <div class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-800">
+                            <ul class="list-inside list-disc">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+                        </div>
+                    @endif
                     <div>
                         <label class="block font-semibold mb-1">Candidate Application *</label>
                         <select x-model="selectedAppId" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900">

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CodeGeneratorService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -28,8 +29,12 @@ class Client extends Model
     {
         static::creating(function (Client $client) {
             if (empty($client->client_code)) {
-                $nextId = (static::withTrashed()->max('id') ?? 0) + 1;
-                $client->client_code = sprintf('CLT-%s-%04d', now()->format('Y'), $nextId);
+                $client->client_code = CodeGeneratorService::next(
+                    static::class,
+                    'client_code',
+                    sprintf('CLT-%s-', now()->format('Y')),
+                    4
+                );
             }
         });
     }

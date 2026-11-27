@@ -81,9 +81,9 @@ class JobRequirementController extends Controller
             'required_skills_csv' => ['nullable', 'string'],
             'preferred_skills_csv' => ['nullable', 'string'],
             'min_experience' => ['required', 'numeric', 'min:0'],
-            'max_experience' => ['nullable', 'numeric', 'min:0'],
+            'max_experience' => ['nullable', 'numeric', 'min:0', 'gte:min_experience'],
             'min_salary' => ['nullable', 'numeric', 'min:0'],
-            'max_salary' => ['nullable', 'numeric', 'min:0'],
+            'max_salary' => ['nullable', 'numeric', 'min:0', 'gte:min_salary'],
             'currency' => ['required', 'string', 'max:10'],
             'location' => ['required', 'string', 'max:180'],
             'country' => ['required', 'string', 'max:100'],
@@ -247,9 +247,9 @@ class JobRequirementController extends Controller
             'required_education' => ['nullable', 'string', 'max:255'],
             'required_skills_csv' => ['nullable', 'string'],
             'min_experience' => ['required', 'numeric', 'min:0'],
-            'max_experience' => ['nullable', 'numeric', 'min:0'],
+            'max_experience' => ['nullable', 'numeric', 'min:0', 'gte:min_experience'],
             'min_salary' => ['nullable', 'numeric', 'min:0'],
-            'max_salary' => ['nullable', 'numeric', 'min:0'],
+            'max_salary' => ['nullable', 'numeric', 'min:0', 'gte:min_salary'],
             'location' => ['required', 'string', 'max:180'],
             'work_mode' => ['required', 'in:onsite,hybrid,remote'],
             'priority' => ['required', 'in:critical,high,medium,low'],
@@ -278,6 +278,7 @@ class JobRequirementController extends Controller
         $job->fill(collect($data)->except(['jd_file', 'required_skills_csv'])->toArray());
         $job->remaining_count = max(0, (int) $job->openings_count - (int) $job->joined_count);
         $job->save();
+        $job->recalculateVacancies();
 
         if ($oldStatus !== $job->status) {
             AuditService::recordStatusTransition($job, $oldStatus, $job->status, 'Updated job status');

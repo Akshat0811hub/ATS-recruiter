@@ -18,6 +18,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Services\AuditService;
 use App\Services\BackupService;
+use App\Services\CodeGeneratorService;
 use App\Services\StorageManagementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -72,19 +73,24 @@ class AdministrationController extends Controller
             'send_invitation' => ['nullable', 'boolean'],
         ]);
 
+        $role = Role::findOrFail($data['role_id']);
+        if ($role->slug === 'client' && empty($data['client_id'])) {
+            return back()->withInput()->withErrors([
+                'client_id' => 'Please select a Client Organisation when creating a Client HR portal account.',
+            ]);
+        }
+
         $org = Organisation::first();
         $inviteToken = $request->boolean('send_invitation') ? Str::random(40) : null;
         $rawPassword = $data['password'] ?: Str::random(16);
-
-        $nextId = (User::withTrashed()->max('id') ?? 0) + 1;
-        $empCode = sprintf('ORB-USR-%03d', $nextId);
+        $empCode = CodeGeneratorService::next(User::class, 'employee_code', 'ORB-USR-', 3);
 
         $user = User::create([
             'employee_code' => $empCode,
             'organisation_id' => $org?->id,
-            'role_id' => $data['role_id'],
-            'team_id' => $data['team_id'] ?? null,
-            'client_id' => $data['client_id'] ?? null,
+            'role_id' => $role->id,
+            'team_id' => $role->slug === 'client' ? null : ($data['team_id'] ?? null),
+            'client_id' => $role->slug === 'client' ? ($data['client_id'] ?? null) : null,
             'name' => $data['name'],
             'email' => strtolower(trim($data['email'])),
             'phone' => $data['phone'] ?? null,
@@ -99,7 +105,7 @@ class AdministrationController extends Controller
             'daily_submission_target' => $data['daily_submission_target'] ?? 5,
         ]);
 
-        if (! empty($data['team_id'])) {
+        if ($role->slug !== 'client' && ! empty($data['team_id'])) {
             $user->teams()->syncWithoutDetaching([
                 $data['team_id'] => ['team_role' => $user->roleSlug(), 'is_active' => true],
             ]);
@@ -110,6 +116,10 @@ class AdministrationController extends Controller
             'role_id' => $user->role_id,
             'team_id' => $user->team_id,
         ]);
+
+        if ($inviteToken) {
+            $request->session()->flash('invitation_link_once', route('invite.show', $inviteToken));
+        }
 
         return back()->with('success', "Account created for {$user->name} ({$user->employee_code}).");
     }
@@ -123,15 +133,48 @@ class AdministrationController extends Controller
             'role_id' => ['required', 'exists:roles,id'],
             'team_id' => ['nullable', 'exists:teams,id'],
             'client_id' => ['nullable', 'exists:clients,id'],
+            'password' => ['nullable', 'string', 'min:8'],
             'daily_sourcing_target' => ['nullable', 'integer', 'min:0'],
             'daily_call_target' => ['nullable', 'integer', 'min:0'],
             'daily_submission_target' => ['nullable', 'integer', 'min:0'],
         ]);
 
-        $oldValues = $user->only(['role_id', 'team_id', 'client_id', 'designation']);
-        $user->update($data);
+        $role = Role::findOrFail($data['role_id']);
+        if ($role->slug === 'client' && empty($data['client_id'])) {
+            return back()->withInput()->withErrors([
+                'client_id' => 'Please select a Client Organisation when assigning the Client HR role.',
+            ]);
+        }
 
-        AuditService::log('user.updated', $user, $user->id, $oldValues, $data);
+        $oldValues = $user->only(['role_id', 'team_id', 'client_id', 'designation']);
+
+        $payload = [
+            'name' => $data['name'],
+            'phone' => $data['phone'] ?? null,
+            'designation' => $data['designation'] ?? null,
+            'role_id' => $role->id,
+            'team_id' => $role->slug === 'client' ? null : ($data['team_id'] ?? null),
+            'client_id' => $role->slug === 'client' ? ($data['client_id'] ?? null) : null,
+            'daily_sourcing_target' => $data['daily_sourcing_target'] ?? $user->daily_sourcing_target,
+            'daily_call_target' => $data['daily_call_target'] ?? $user->daily_call_target,
+            'daily_submission_target' => $data['daily_submission_target'] ?? $user->daily_submission_target,
+        ];
+
+        if (! empty($data['password'])) {
+            $payload['password'] = Hash::make($data['password']);
+            $payload['failed_login_attempts'] = 0;
+            $payload['locked_until'] = null;
+        }
+
+        $user->update($payload);
+
+        if ($role->slug !== 'client' && ! empty($data['team_id'])) {
+            $user->teams()->syncWithoutDetaching([
+                $data['team_id'] => ['team_role' => $role->slug, 'is_active' => true],
+            ]);
+        }
+
+        AuditService::log('user.updated', $user, $user->id, $oldValues, collect($payload)->except('password')->all());
 
         return back()->with('success', "Updated user account {$user->name}.");
     }
@@ -215,9 +258,8 @@ class AdministrationController extends Controller
             'member_ids.*' => ['exists:users,id'],
         ]);
 
-        $nextId = (Team::withTrashed()->max('id') ?? 0) + 1;
         $team = Team::create([
-            'code' => sprintf('TM-%03d', $nextId),
+            'code' => CodeGeneratorService::next(Team::class, 'code', 'TM-', 3),
             'name' => $data['name'],
             'specialization' => $data['specialization'] ?? null,
             'manager_id' => $data['manager_id'] ?? null,
@@ -461,7 +503,7 @@ class AdministrationController extends Controller
         $externalBackupReady = $this->backupService->isExternalDestinationConfigured();
 
         $health = [
-            'app_version' => '1.0.0-enterprise',
+            'app_version' => '1.1.0-enterprise',
             'php_version' => PHP_VERSION,
             'laravel_version' => app()->version(),
             'environment' => app()->environment(),

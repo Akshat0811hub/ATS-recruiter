@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CodeGeneratorService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -51,8 +52,12 @@ class InterviewRecord extends Model
     {
         static::creating(function (InterviewRecord $record) {
             if (empty($record->interview_code)) {
-                $nextId = (static::max('id') ?? 0) + 1;
-                $record->interview_code = sprintf('INT-%s-%04d', now()->format('Y'), $nextId);
+                $record->interview_code = CodeGeneratorService::next(
+                    static::class,
+                    'interview_code',
+                    sprintf('INT-%s-', now()->format('Y')),
+                    4
+                );
             }
         });
     }

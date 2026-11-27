@@ -83,13 +83,14 @@ class RecruitmentOperationController extends Controller
         $candidate = RecruitmentAccess::query(Candidate::class)->findOrFail($data['candidate_id']);
         $job = RecruitmentAccess::query(JobRequirement::class)->findOrFail($data['job_requirement_id']);
 
-        // Prevent duplicate effort: show when another recruiter is already working on the same candidate for the same vacancy
-        $existingApp = RecruitmentAccess::query(CandidateApplication::class)->with('recruiter')
+        // Prevent duplicate effort across the entire organisation and gracefully restore soft-deleted applications
+        $existingApp = CandidateApplication::withTrashed()
+            ->with('recruiter')
             ->where('candidate_id', $candidate->id)
             ->where('job_requirement_id', $job->id)
             ->first();
 
-        if ($existingApp) {
+        if ($existingApp && ! $existingApp->trashed()) {
             $ownerName = $existingApp->recruiter?->name ?? 'another recruiter';
 
             return back()->withErrors([
@@ -97,18 +98,33 @@ class RecruitmentOperationController extends Controller
             ]);
         }
 
-        $app = CandidateApplication::create([
-            'candidate_id' => $candidate->id,
-            'job_requirement_id' => $job->id,
-            'client_id' => $job->client_id,
-            'recruiter_id' => Auth::id(),
-            'pipeline_stage' => 'sourced',
-            'applied_ctc' => $candidate->current_ctc,
-            'expected_ctc' => $data['expected_ctc'] ?? $candidate->expected_ctc,
-            'currency' => $candidate->currency ?? 'INR',
-            'notice_period_days' => $data['notice_period_days'] ?? $candidate->notice_period_days,
-            'stage_remarks' => $data['stage_remarks'] ?? null,
-        ]);
+        if ($existingApp && $existingApp->trashed()) {
+            $existingApp->restore();
+            $existingApp->update([
+                'recruiter_id' => Auth::id(),
+                'pipeline_stage' => 'sourced',
+                'is_active' => true,
+                'stage_updated_at' => now(),
+                'expected_ctc' => $data['expected_ctc'] ?? $candidate->expected_ctc,
+                'notice_period_days' => $data['notice_period_days'] ?? $candidate->notice_period_days,
+                'stage_remarks' => $data['stage_remarks'] ?? 'Re-activated application',
+                'lock_version' => $existingApp->lock_version + 1,
+            ]);
+            $app = $existingApp;
+        } else {
+            $app = CandidateApplication::create([
+                'candidate_id' => $candidate->id,
+                'job_requirement_id' => $job->id,
+                'client_id' => $job->client_id,
+                'recruiter_id' => Auth::id(),
+                'pipeline_stage' => 'sourced',
+                'applied_ctc' => $candidate->current_ctc,
+                'expected_ctc' => $data['expected_ctc'] ?? $candidate->expected_ctc,
+                'currency' => $candidate->currency ?? 'INR',
+                'notice_period_days' => $data['notice_period_days'] ?? $candidate->notice_period_days,
+                'stage_remarks' => $data['stage_remarks'] ?? null,
+            ]);
+        }
 
         AuditService::log('application.created', $app, $app->id, null, [
             'application_code' => $app->application_code,
@@ -332,8 +348,8 @@ class RecruitmentOperationController extends Controller
             'client_visible_notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        // Prevent duplicate submissions for the same candidate and job
-        $existing = RecruitmentAccess::query(ClientSubmission::class)->where('candidate_id', $application->candidate_id)
+        // Prevent duplicate submissions for the same candidate and job across the organisation
+        $existing = ClientSubmission::where('candidate_id', $application->candidate_id)
             ->where('job_requirement_id', $application->job_requirement_id)
             ->first();
 
@@ -423,7 +439,7 @@ class RecruitmentOperationController extends Controller
                     continue;
                 }
 
-                $alreadySubmitted = RecruitmentAccess::query(ClientSubmission::class)->where('candidate_id', $app->candidate_id)
+                $alreadySubmitted = ClientSubmission::where('candidate_id', $app->candidate_id)
                     ->where('job_requirement_id', $app->job_requirement_id)
                     ->exists();
 

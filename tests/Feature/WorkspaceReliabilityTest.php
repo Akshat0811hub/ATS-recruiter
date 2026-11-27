@@ -2,18 +2,25 @@
 
 namespace Tests\Feature;
 
+use App\Models\AtsNotification;
 use App\Models\Candidate;
 use App\Models\CandidateApplication;
 use App\Models\Client;
 use App\Models\ClientSubmission;
 use App\Models\JobAssignment;
 use App\Models\JobRequirement;
+use App\Models\JoiningRecord;
+use App\Models\Placement;
+use App\Models\ReplacementRecord;
 use App\Models\ResumeVersion;
 use App\Models\Role;
 use App\Models\StorageRecord;
+use App\Models\SystemSetting;
 use App\Models\Task;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\PipelineService;
+use App\Services\StorageManagementService;
 use App\Services\TwoFactorService;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -510,5 +517,142 @@ class WorkspaceReliabilityTest extends TestCase
             ->assertSee('Active')
             ->assertDontSee($pendingSecret)
             ->assertDontSee($storedRecoveryCodes[0]);
+    }
+
+    public function test_code_generation_multi_job_stage_replacement_guardrails_and_notification_deduplication(): void
+    {
+        $jobA = JobRequirement::create([
+            'client_id' => $this->clientA->id,
+            'title' => 'Principal Systems Architect',
+            'openings_count' => 2,
+            'location' => 'Mumbai',
+        ]);
+        $jobB = JobRequirement::create([
+            'client_id' => $this->clientB->id,
+            'title' => 'Staff Platform Lead',
+            'openings_count' => 1,
+            'location' => 'Pune',
+        ]);
+
+        JobAssignment::create([
+            'job_requirement_id' => $jobA->id,
+            'recruiter_id' => $this->recruiter1->id,
+            'assigned_by' => $this->superAdmin->id,
+            'is_primary' => true,
+            'status' => 'active',
+        ]);
+        JobAssignment::create([
+            'job_requirement_id' => $jobB->id,
+            'recruiter_id' => $this->recruiter1->id,
+            'assigned_by' => $this->superAdmin->id,
+            'is_primary' => true,
+            'status' => 'active',
+        ]);
+
+        $cand = Candidate::create([
+            'full_name' => 'Multi Job Candidate',
+            'mobile_number' => '9891001122',
+            'assigned_recruiter_id' => $this->recruiter1->id,
+        ]);
+
+        $appA = CandidateApplication::create([
+            'candidate_id' => $cand->id,
+            'job_requirement_id' => $jobA->id,
+            'client_id' => $this->clientA->id,
+            'recruiter_id' => $this->recruiter1->id,
+            'pipeline_stage' => 'offer_accepted',
+        ]);
+        $appB = CandidateApplication::create([
+            'candidate_id' => $cand->id,
+            'job_requirement_id' => $jobB->id,
+            'client_id' => $this->clientB->id,
+            'recruiter_id' => $this->recruiter1->id,
+            'pipeline_stage' => 'screened',
+        ]);
+
+        // Rejecting on Job B must NOT overwrite active offer_accepted stage on Job A, and notification URL must be valid
+        $this->actingAs($this->superAdmin);
+        app(PipelineService::class)->transitionStage($appB, 'rejected', 'Client paused hiring');
+
+        $this->assertSame('offer_accepted', $cand->fresh()->current_stage);
+        $notif = AtsNotification::where('notifiable_id', $this->recruiter1->id)->where('category', 'pipeline_update')->latest()->firstOrFail();
+        $this->assertSame("/candidates/{$cand->id}", $notif->action_url);
+        $this->actingAs($this->recruiter1)->get($notif->action_url)->assertOk();
+
+        // Soft-deleted application is cleanly restored when re-associated instead of throwing unique constraint error
+        $appB->delete();
+        $this->actingAs($this->recruiter1)->post('/applications', [
+            'candidate_id' => $cand->id,
+            'job_requirement_id' => $jobB->id,
+        ])->assertSessionHasNoErrors();
+        $this->assertNull($appB->fresh()->deleted_at);
+
+        // Replacement guardrail: cannot open replacement on unjoined joining_pending record
+        $pendingJoining = JoiningRecord::create([
+            'candidate_application_id' => $appA->id,
+            'job_requirement_id' => $jobA->id,
+            'client_id' => $this->clientA->id,
+            'candidate_id' => $cand->id,
+            'recruiter_id' => $this->recruiter1->id,
+            'expected_joining_date' => now()->addDays(5)->toDateString(),
+            'status' => 'joining_pending',
+        ]);
+
+        $this->actingAs($this->superAdmin)->post("/joinings/{$pendingJoining->id}/replacement", [
+            'exit_date' => now()->toDateString(),
+            'exit_reason' => 'Premature attempt before joining',
+        ])->assertSessionHasErrors('operation');
+        $this->assertEquals(0, ReplacementRecord::count());
+
+        // Confirm joining, then verify idempotent double-replacement & collision-free Placement codes after deletion
+        $this->actingAs($this->recruiter1)->post("/joinings/{$pendingJoining->id}/confirm", [
+            'actual_joining_date' => now()->toDateString(),
+            'final_salary' => 2800000,
+        ])->assertSessionHasNoErrors();
+
+        $this->actingAs($this->superAdmin)->post("/joinings/{$pendingJoining->id}/replacement", [
+            'exit_date' => now()->addDays(10)->toDateString(),
+            'exit_reason' => 'Relocated within warranty',
+            'reopen_vacancy' => 1,
+        ])->assertSessionHasNoErrors();
+
+        $this->actingAs($this->superAdmin)->post("/joinings/{$pendingJoining->id}/replacement", [
+            'exit_date' => now()->addDays(10)->toDateString(),
+            'exit_reason' => 'Duplicate click',
+            'reopen_vacancy' => 1,
+        ])->assertSessionHasNoErrors();
+
+        $this->assertEquals(1, ReplacementRecord::where('joining_record_id', $pendingJoining->id)->count());
+
+        // Storage alert deduplication: calling checkAndNotifyThresholds twice on the same day creates only 1 alert
+        SystemSetting::setValue('storage_quota_bytes', 1000, 'storage', 'integer');
+        StorageRecord::create([
+            'disk' => 'local',
+            'category' => 'resume',
+            'file_path' => 'vault/resume/quota_test.pdf',
+            'secure_filename' => 'quota_test.pdf',
+            'original_name' => 'quota_test.pdf',
+            'mime_type' => 'application/pdf',
+            'extension' => 'pdf',
+            'size_bytes' => 850,
+            'sha256_checksum' => hash('sha256', 'quota'),
+        ]);
+
+        $storageSvc = app(StorageManagementService::class);
+        $storageSvc->checkAndNotifyThresholds();
+        $storageSvc->checkAndNotifyThresholds();
+
+        $this->assertEquals(
+            1,
+            AtsNotification::where('notifiable_id', $this->superAdmin->id)->where('category', 'storage_alert')->count()
+        );
+
+        // Client HR user creation requires client_id
+        $clientRole = Role::where('slug', 'client')->firstOrFail();
+        $this->actingAs($this->superAdmin)->post('/admin/users', [
+            'name' => 'Missing Org Client User',
+            'email' => 'missing.org@example.com',
+            'role_id' => $clientRole->id,
+        ])->assertSessionHasErrors('client_id');
     }
 }

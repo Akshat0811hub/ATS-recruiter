@@ -331,7 +331,7 @@ class AuthController extends Controller
             return back()->with('status', 'Add the setup key below to your authenticator app, then enter the 6-digit verification code to enable 2FA.');
         }
 
-        if ($user->isSuperAdmin() && app()->environment('production') && filter_var(env('ATS_REQUIRE_SUPER_ADMIN_2FA', true), FILTER_VALIDATE_BOOLEAN)) {
+        if ($user->isSuperAdmin() && app()->environment('production') && (bool) config('ats.require_super_admin_2fa', true)) {
             return back()->withErrors(['two_factor' => 'Two-Factor Authentication is mandatory for Super Admin accounts in production.']);
         }
 

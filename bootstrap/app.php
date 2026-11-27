@@ -29,4 +29,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        $exceptions->render(function (RuntimeException $e, Request $request) {
+            if ($e::class !== RuntimeException::class || $request->is('api/*') || $request->expectsJson()) {
+                return null;
+            }
+
+            return back()
+                ->withInput($request->except(['password', 'password_confirmation', 'current_password', 'new_password', 'new_password_confirmation']))
+                ->withErrors(['operation' => $e->getMessage()]);
+        });
     })->create();

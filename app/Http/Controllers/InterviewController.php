@@ -69,7 +69,7 @@ class InterviewController extends Controller
             'interviewer_name' => ['required', 'string', 'max:150'],
             'interviewer_email' => ['nullable', 'email', 'max:180'],
             'interview_date' => ['required', 'date'],
-            'interview_time' => ['required', 'string', 'max:20'],
+            'interview_time' => ['required', 'string', 'regex:/^\d{1,2}:\d{2}(:\d{2})?$/'],
             'timezone' => ['nullable', 'string', 'max:64'],
             'duration_minutes' => ['required', 'integer', 'min:10', 'max:480'],
             'mode' => ['required', 'in:telephonic,video,face_to_face,technical_assessment,online_assessment'],
@@ -101,8 +101,8 @@ class InterviewController extends Controller
 
         $scheduledAt = Carbon::parse($data['interview_date'].' '.$data['interview_time']);
 
-        // Conflict Detection for Candidate at the exact scheduled timestamp
-        $candidateConflict = RecruitmentAccess::query(InterviewRecord::class)->where('candidate_id', $application->candidate_id)
+        // Conflict Detection for Candidate across all scheduled interviews in the organisation
+        $candidateConflict = InterviewRecord::where('candidate_id', $application->candidate_id)
             ->where('candidate_application_id', '!=', $application->id)
             ->whereDate('interview_date', $data['interview_date'])
             ->where('interview_time', $data['interview_time'])
@@ -122,8 +122,9 @@ class InterviewController extends Controller
 
             $roundName = $data['round_name'] ?: ($roundDef?->round_name ?? "Round {$roundNumber}: Interview");
 
-            $existingRecord = RecruitmentAccess::query(InterviewRecord::class)->where('candidate_application_id', $application->id)
+            $existingRecord = InterviewRecord::where('candidate_application_id', $application->id)
                 ->where('round_number', $roundNumber)
+                ->lockForUpdate()
                 ->first();
 
             $isReschedule = $existingRecord !== null;

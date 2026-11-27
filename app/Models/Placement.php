@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CodeGeneratorService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -24,8 +25,12 @@ class Placement extends Model
     {
         static::creating(function (Placement $placement) {
             if (empty($placement->placement_code)) {
-                $nextId = (static::max('id') ?? 0) + 1;
-                $placement->placement_code = sprintf('PLC-%s-%04d', now()->format('Y'), $nextId);
+                $placement->placement_code = CodeGeneratorService::next(
+                    static::class,
+                    'placement_code',
+                    sprintf('PLC-%s-', now()->format('Y')),
+                    4
+                );
             }
         });
     }

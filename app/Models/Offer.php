@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CodeGeneratorService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -39,8 +40,12 @@ class Offer extends Model
     {
         static::creating(function (Offer $offer) {
             if (empty($offer->offer_code)) {
-                $nextId = (static::max('id') ?? 0) + 1;
-                $offer->offer_code = sprintf('OFR-%s-%04d', now()->format('Y'), $nextId);
+                $offer->offer_code = CodeGeneratorService::next(
+                    static::class,
+                    'offer_code',
+                    sprintf('OFR-%s-', now()->format('Y')),
+                    4
+                );
             }
         });
     }

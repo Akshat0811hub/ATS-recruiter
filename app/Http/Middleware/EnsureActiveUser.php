@@ -28,7 +28,7 @@ class EnsureActiveUser
             $require2fa = $user->two_factor_enabled || (
                 $user->isSuperAdmin()
                 && app()->environment('production')
-                && filter_var(env('ATS_REQUIRE_SUPER_ADMIN_2FA', true), FILTER_VALIDATE_BOOLEAN)
+                && (bool) config('ats.require_super_admin_2fa', true)
                 && ! empty($user->two_factor_secret)
             );
 

@@ -43,7 +43,7 @@ class StorageManagementService
 
         $org = Organisation::first();
 
-        return $org?->storage_quota_bytes ?? (int) env('ATS_MAX_STORAGE_BYTES', 19510000000);
+        return $org?->storage_quota_bytes ?? (int) config('ats.max_storage_bytes', 19510000000);
     }
 
     public function getStorageMetrics(): array
@@ -122,11 +122,11 @@ class StorageManagementService
             throw new RuntimeException("File MIME type [{$mime}] is not permitted.");
         }
 
-        // Basic content safety check against embedded PHP scripts
+        // Content safety scan against embedded executable scripts
         $realPath = $file->getRealPath();
         if ($realPath && file_exists($realPath)) {
-            $headBytes = (string) file_get_contents($realPath, false, null, 0, 512);
-            if (str_contains(strtolower($headBytes), '<?php')) {
+            $scanSlice = strtolower((string) file_get_contents($realPath, false, null, 0, 2097152));
+            if (str_contains($scanSlice, '<?php') || str_contains($scanSlice, '<?=') || (! in_array($extension, ['png', 'jpg', 'jpeg'], true) && str_contains($scanSlice, '<script'))) {
                 throw new RuntimeException('Security violation: Executable script payload detected in upload.');
             }
         }
@@ -197,16 +197,27 @@ class StorageManagementService
         }
 
         $level = $percent >= 95 ? '95%' : ($percent >= 85 ? '85%' : '70%');
+        $title = "Storage Alert: {$level} Utilisation Reached";
+        $todayStr = now()->toDateString();
 
         $admins = User::whereHas('role', fn ($q) => $q->where('slug', 'super_admin'))->get();
         foreach ($admins as $admin) {
-            AtsNotification::sendToUser(
-                $admin,
-                "Storage Alert: {$level} Utilisation Reached",
-                "CRM storage utilisation is currently at {$percent}%. Review Storage Management for breakdown.",
-                'storage_alert',
-                '/admin/storage'
-            );
+            $alreadyAlertedToday = AtsNotification::where('notifiable_type', User::class)
+                ->where('notifiable_id', $admin->id)
+                ->where('category', 'storage_alert')
+                ->whereDate('created_at', $todayStr)
+                ->get()
+                ->contains(fn (AtsNotification $n) => ($n->data['title'] ?? '') === $title);
+
+            if (! $alreadyAlertedToday) {
+                AtsNotification::sendToUser(
+                    $admin,
+                    $title,
+                    "CRM storage utilisation is currently at {$percent}%. Review Storage Management for breakdown.",
+                    'storage_alert',
+                    '/admin/storage'
+                );
+            }
         }
 
         return $level;

@@ -154,10 +154,42 @@ class VacancyClosureService
             $job = $lockedJoining->jobRequirement()->lockForUpdate()->firstOrFail();
             $placement = $lockedJoining->placement;
 
+            if (! $placement && ! in_array($lockedJoining->status, ['joined', 'placement_completed', 'left_after_joining', 'replacement_required'], true)) {
+                throw new \RuntimeException('Replacement can only be opened after a candidate joining has been confirmed.');
+            }
+
+            $existingOpenReplacement = ReplacementRecord::where('joining_record_id', $lockedJoining->id)
+                ->whereIn('status', ['open', 'in_progress'])
+                ->first();
+
+            if ($existingOpenReplacement) {
+                return $existingOpenReplacement;
+            }
+
             $parsedExit = Carbon::parse($exitDate);
             $withinPeriod = $lockedJoining->replacement_expiry_date
                 ? $parsedExit->lte($lockedJoining->replacement_expiry_date)
                 : true;
+
+            if (! $placement) {
+                $joinedAt = $lockedJoining->actual_joining_date ?? $lockedJoining->expected_joining_date ?? now();
+                $placement = Placement::create([
+                    'joining_record_id' => $lockedJoining->id,
+                    'candidate_application_id' => $lockedJoining->candidate_application_id,
+                    'job_requirement_id' => $job->id,
+                    'client_id' => $lockedJoining->client_id,
+                    'candidate_id' => $lockedJoining->candidate_id,
+                    'recruiter_id' => $lockedJoining->recruiter_id,
+                    'joined_date' => $joinedAt->toDateString(),
+                    'final_ctc' => (float) ($lockedJoining->final_salary ?? 0),
+                    'billable_fee' => (float) ($lockedJoining->placement_value ?? 0),
+                    'currency' => $lockedJoining->currency ?? 'INR',
+                    'warranty_end_date' => ($lockedJoining->replacement_expiry_date ?? $joinedAt->copy()->addDays(90))->toDateString(),
+                    'status' => 'replacement_triggered',
+                ]);
+            } else {
+                $placement->update(['status' => 'replacement_triggered']);
+            }
 
             $lockedJoining->update([
                 'status' => $reopenVacancy ? 'replacement_required' : 'left_after_joining',
@@ -165,12 +197,8 @@ class VacancyClosureService
                 'remarks' => trim($lockedJoining->remarks."\nLeft after joining ({$parsedExit->toDateString()}): {$exitReason}"),
             ]);
 
-            if ($placement) {
-                $placement->update(['status' => 'replacement_triggered']);
-            }
-
             $replacement = ReplacementRecord::create([
-                'placement_id' => $placement?->id ?? Placement::firstOrFail()->id,
+                'placement_id' => $placement->id,
                 'joining_record_id' => $lockedJoining->id,
                 'job_requirement_id' => $job->id,
                 'client_id' => $lockedJoining->client_id,

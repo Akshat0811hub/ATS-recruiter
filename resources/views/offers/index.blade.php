@@ -4,7 +4,7 @@
 @section('page_subtitle', 'Track offers, salary discussions and candidate acceptance.')
 
 @section('content')
-<div x-data="{ showOfferModal: {{ request()->boolean('create') || $errors->any() ? 'true' : 'false' }} }">
+<div x-data="{ showOfferModal: {{ request()->boolean('create') || ($errors->any() && old('_form') === 'create_offer') ? 'true' : 'false' }} }">
     <!-- Filter & Create Toolbar -->
     <div class="mb-5 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
         <form method="GET" action="{{ route('offers.index') }}" class="flex flex-wrap items-center gap-2.5">
@@ -108,8 +108,14 @@
             @if($selectedApplications->isEmpty())
                 <div class="py-6 text-center text-slate-400">No candidate applications currently in Selected or Interview stages.</div>
             @else
-                <form method="POST" :action="'/applications/' + selectedAppId + '/offer'" enctype="multipart/form-data" class="mt-4 space-y-3.5">
+                <form method="POST" :action="'{{ url('/applications') }}/' + selectedAppId + '/offer'" @submit="if (!selectedAppId) { $event.preventDefault(); }" enctype="multipart/form-data" class="mt-4 space-y-3.5">
                     @csrf
+                    <input type="hidden" name="_form" value="create_offer">
+                    @if($errors->any() && old('_form') === 'create_offer')
+                        <div class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-800">
+                            <ul class="list-inside list-disc">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+                        </div>
+                    @endif
                     <div>
                         <label class="block font-semibold mb-1">Candidate Application *</label>
                         <select x-model="selectedAppId" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900">

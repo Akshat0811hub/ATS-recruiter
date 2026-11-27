@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CodeGeneratorService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -42,8 +43,12 @@ class JoiningRecord extends Model
     {
         static::creating(function (JoiningRecord $joining) {
             if (empty($joining->joining_code)) {
-                $nextId = (static::max('id') ?? 0) + 1;
-                $joining->joining_code = sprintf('JON-%s-%04d', now()->format('Y'), $nextId);
+                $joining->joining_code = CodeGeneratorService::next(
+                    static::class,
+                    'joining_code',
+                    sprintf('JON-%s-', now()->format('Y')),
+                    4
+                );
             }
         });
     }

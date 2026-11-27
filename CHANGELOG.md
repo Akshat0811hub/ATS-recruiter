@@ -2,6 +2,14 @@
 
 All notable changes to **OrbiTouch ATS** (OrbiTouch HR & Recruitment Consultants / Orbitouch Outsourcing Private Limited) are documented in this file.
 
+## [1.1.1] - Production Conflict Prevention, Config-Cache Safety & Workflow Guardrails
+### Fixed & Hardened
+- **Production `config:cache` Compatibility:** Added `config/ats.php` and replaced all direct `env()` calls inside `app/` and `DatabaseSeeder` with `config('ats.*')` so production caching never resets 2FA enforcement, storage quotas, or external backup settings.
+- **Collision-Free Entity Codes:** Added `CodeGeneratorService` across all 10 sequential business codes (`CLT`, `JOB`, `CND`, `APP`, `SUB`, `INT`, `OFR`, `JON`, `PLC`, `ORB-USR`, `TM`) to prevent duplicate-key errors after record deletions, year rollovers, or concurrent requests.
+- **Cross-Team Duplicate Effort & Soft-Delete Recovery:** Hardened application, submission, interview conflict, and offer revision lookups to prevent cross-recruiter SQL unique-constraint crashes and cleanly restore soft-deleted applications.
+- **Multi-Job Candidate Stage Accuracy & Notification URLs:** Updated `PipelineService` to preserve a candidate's highest active stage across concurrent jobs and point pipeline notifications to `/candidates/{id}` instead of non-existent `/applications/{id}` URLs.
+- **Replacement Guardrails, Backup FK Ordering & Alert Deduplication:** Blocked premature replacements on unjoined records, removed unsafe `Placement::firstOrFail()` fallback, included `users`/`team_members` with foreign-key-safe restoration in `BackupService`, deduplicated daily storage/reminder alerts, and added inline Job & User account editing modals.
+
 ## [1.1.0] - Workspace Access Hardening, Reports/CSV Reliability, Verified 2FA & Light-Theme UI Polish
 ### Fixed & Improved
 - **Candidate Optional Fields & Consent Default:** Added migration `0001_01_01_000009` making `notice_period_days`, `total_experience`, `relevant_experience`, `availability_status`, and submission experience/notice snapshot columns nullable; updated candidate creation, editing, and CSV import to default `consent_status` to `pending` (recording `consent_recorded_at` only when explicitly `granted`).

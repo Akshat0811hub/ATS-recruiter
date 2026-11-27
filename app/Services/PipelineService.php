@@ -60,8 +60,9 @@ class PipelineService
                 'lock_version' => $lockedApp->lock_version + 1,
             ]);
 
+            $highestActiveStage = $this->resolveHighestCandidateStage($lockedApp->candidate_id, $targetStage);
             $lockedApp->candidate()->update([
-                'current_stage' => $targetStage,
+                'current_stage' => $highestActiveStage,
             ]);
 
             AuditService::recordStatusTransition(
@@ -96,12 +97,44 @@ class PipelineService
                     'Candidate Stage Updated',
                     "{$lockedApp->candidate?->full_name} moved to ".CandidateApplication::allStages()[$targetStage]." for {$lockedApp->jobRequirement?->title}.",
                     'pipeline_update',
-                    "/applications/{$lockedApp->id}"
+                    "/candidates/{$lockedApp->candidate_id}"
                 );
             }
 
             return $lockedApp->fresh();
         });
+    }
+
+    /**
+     * Determine the most advanced active recruitment stage across all jobs for a candidate
+     * so rejecting one job application does not mask an active offer/joining on another job.
+     */
+    private function resolveHighestCandidateStage(int $candidateId, string $fallbackStage): string
+    {
+        $stageOrder = array_keys(CandidateApplication::MAIN_STAGES);
+        $rankMap = array_flip($stageOrder);
+
+        $activeStages = CandidateApplication::where('candidate_id', $candidateId)
+            ->where('is_active', true)
+            ->pluck('pipeline_stage')
+            ->all();
+
+        if (empty($activeStages)) {
+            return $fallbackStage;
+        }
+
+        $bestStage = $fallbackStage;
+        $bestRank = -1;
+
+        foreach ($activeStages as $stage) {
+            $rank = $rankMap[$stage] ?? -1;
+            if ($rank > $bestRank) {
+                $bestRank = $rank;
+                $bestStage = $stage;
+            }
+        }
+
+        return $bestRank >= 0 ? $bestStage : $fallbackStage;
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CodeGeneratorService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -55,8 +56,12 @@ class CandidateApplication extends Model
     {
         static::creating(function (CandidateApplication $app) {
             if (empty($app->application_code)) {
-                $nextId = (static::withTrashed()->max('id') ?? 0) + 1;
-                $app->application_code = sprintf('APP-%s-%04d', now()->format('Y'), $nextId);
+                $app->application_code = CodeGeneratorService::next(
+                    static::class,
+                    'application_code',
+                    sprintf('APP-%s-', now()->format('Y')),
+                    4
+                );
             }
             if (empty($app->stage_updated_at)) {
                 $app->stage_updated_at = now();

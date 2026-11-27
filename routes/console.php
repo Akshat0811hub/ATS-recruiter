@@ -3,6 +3,7 @@
 use App\Models\AtsNotification;
 use App\Models\InterviewRecord;
 use App\Models\Task;
+use App\Models\User;
 use App\Services\BackupService;
 use App\Services\StorageManagementService;
 use Illuminate\Support\Carbon;
@@ -29,13 +30,26 @@ Artisan::command('ats:send-reminders', function () {
         ->get();
 
     foreach ($overdueTasks as $task) {
-        AtsNotification::sendToUser(
-            $task->assigned_to,
-            "Overdue Follow-up: {$task->title}",
-            "Task was due on {$task->due_date->format('d M Y')}.",
-            'overdue_followup',
-            '/tasks?filter=overdue'
-        );
+        if (! $task->assigned_to) {
+            continue;
+        }
+        $title = "Overdue Follow-up: {$task->title}";
+        $alreadySent = AtsNotification::where('notifiable_type', User::class)
+            ->where('notifiable_id', $task->assigned_to)
+            ->where('category', 'overdue_followup')
+            ->whereDate('created_at', $today)
+            ->get()
+            ->contains(fn (AtsNotification $n) => ($n->data['title'] ?? '') === $title);
+
+        if (! $alreadySent) {
+            AtsNotification::sendToUser(
+                $task->assigned_to,
+                $title,
+                "Task was due on {$task->due_date->format('d M Y')}.",
+                'overdue_followup',
+                '/tasks?filter=overdue'
+            );
+        }
     }
 
     $todaysInterviews = InterviewRecord::with(['candidate', 'jobRequirement', 'candidateApplication'])
@@ -44,14 +58,25 @@ Artisan::command('ats:send-reminders', function () {
         ->get();
 
     foreach ($todaysInterviews as $interview) {
-        if ($interview->candidateApplication?->recruiter_id) {
-            AtsNotification::sendToUser(
-                $interview->candidateApplication->recruiter_id,
-                "Today's Interview: {$interview->round_name}",
-                "{$interview->candidate?->full_name} at {$interview->interview_time} ({$interview->jobRequirement?->title}).",
-                'upcoming_interview',
-                '/interviews?date='.$today
-            );
+        $recruiterId = $interview->candidateApplication?->recruiter_id;
+        if ($recruiterId) {
+            $title = "Today's Interview: {$interview->round_name} ({$interview->interview_code})";
+            $alreadySent = AtsNotification::where('notifiable_type', User::class)
+                ->where('notifiable_id', $recruiterId)
+                ->where('category', 'upcoming_interview')
+                ->whereDate('created_at', $today)
+                ->get()
+                ->contains(fn (AtsNotification $n) => ($n->data['title'] ?? '') === $title);
+
+            if (! $alreadySent) {
+                AtsNotification::sendToUser(
+                    $recruiterId,
+                    $title,
+                    "{$interview->candidate?->full_name} at {$interview->interview_time} ({$interview->jobRequirement?->title}).",
+                    'upcoming_interview',
+                    '/interviews?date='.$today
+                );
+            }
         }
     }
 

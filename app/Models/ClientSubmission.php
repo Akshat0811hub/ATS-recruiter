@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CodeGeneratorService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -36,8 +37,12 @@ class ClientSubmission extends Model
     {
         static::creating(function (ClientSubmission $sub) {
             if (empty($sub->submission_code)) {
-                $nextId = (static::max('id') ?? 0) + 1;
-                $sub->submission_code = sprintf('SUB-%s-%04d', now()->format('Y'), $nextId);
+                $sub->submission_code = CodeGeneratorService::next(
+                    static::class,
+                    'submission_code',
+                    sprintf('SUB-%s-', now()->format('Y')),
+                    4
+                );
             }
             if (empty($sub->submitted_at)) {
                 $sub->submitted_at = now();

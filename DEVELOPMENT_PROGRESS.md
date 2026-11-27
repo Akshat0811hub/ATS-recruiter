@@ -43,9 +43,9 @@
 - [ ] Phase 10: Owner approval to configure `crm.orbitouch-hr.com` subdomain DNS on Hostinger, populate live Hostinger MySQL & SMTP credentials and external backup destination (`ATS_BACKUP_EXTERNAL_DISK`) in production `.env`, and execute `scripts/deploy-hostinger.sh`.
 
 ## Latest Git & CI Status
-- **Active Release Version:** `v1.1.0` (Workspace Access Hardening, Reports/Export Sync, Idempotent Recurring Tasks, Verified 2FA & Light-Theme UI Polish)
+- **Active Release Version:** `v1.1.1` (Production Conflict Prevention, Config-Cache Safety, Workspace Access Hardening & UI Polish)
 - **Primary Repository:** `https://github.com/Akshat0811hub/ATS-recruiter.git` (`main` branch)
-- **Automated Test Results:** `26 passed, 0 failed (235 assertions)`
+- **Automated Test Results:** `27 passed, 0 failed (250 assertions)`
 - **Database Migration & Rollback Verification:** `PASSED` (`10 migrations` via `migrate:fresh` & `migrate:refresh`)
 - **Code Formatting (Laravel Pint) & Composer Security Audit:** `PASSED` (`0 advisories`)
 - **Production Asset Build (Vite):** `PASSED`

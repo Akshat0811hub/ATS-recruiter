@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CodeGeneratorService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -39,8 +40,12 @@ class JobRequirement extends Model
     {
         static::creating(function (JobRequirement $job) {
             if (empty($job->job_code)) {
-                $nextId = (static::withTrashed()->max('id') ?? 0) + 1;
-                $job->job_code = sprintf('JOB-%s-%04d', now()->format('Y'), $nextId);
+                $job->job_code = CodeGeneratorService::next(
+                    static::class,
+                    'job_code',
+                    sprintf('JOB-%s-', now()->format('Y')),
+                    4
+                );
             }
             $job->remaining_count = max(0, (int) $job->openings_count - (int) ($job->joined_count ?? 0));
         });

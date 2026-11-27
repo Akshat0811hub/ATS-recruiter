@@ -11,6 +11,7 @@ use App\Models\SystemSetting;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
@@ -22,6 +23,8 @@ class BackupService
         'permissions',
         'role_permission',
         'teams',
+        'users',
+        'team_members',
         'storage_records',
         'clients',
         'client_contacts',
@@ -57,7 +60,7 @@ class BackupService
 
     public function isExternalDestinationConfigured(): bool
     {
-        $externalDisk = env('ATS_BACKUP_EXTERNAL_DISK') ?: SystemSetting::getValue('backup_external_disk');
+        $externalDisk = config('ats.backup_external_disk') ?: SystemSetting::getValue('backup_external_disk');
 
         return ! empty($externalDisk);
     }
@@ -168,34 +171,38 @@ class BackupService
         $restoredRecordsCount = 0;
         $restoredFilesCount = 0;
 
-        DB::transaction(function () use ($snapshot, &$restoredRecordsCount, &$restoredFilesCount) {
-            foreach ($snapshot['tables'] as $table => $rows) {
-                if (! is_array($rows)) {
-                    continue;
-                }
-                foreach ($rows as $row) {
-                    if (! isset($row['id'])) {
+        Schema::disableForeignKeyConstraints();
+        try {
+            DB::transaction(function () use ($snapshot, &$restoredRecordsCount, &$restoredFilesCount) {
+                foreach ($snapshot['tables'] as $table => $rows) {
+                    if (! is_array($rows) || ! Schema::hasTable($table)) {
                         continue;
                     }
-                    $exists = DB::table($table)->where('id', $row['id'])->exists();
-                    if (! $exists) {
-                        DB::table($table)->insert($row);
-                        $restoredRecordsCount++;
-                    } elseif (array_key_exists('deleted_at', $row) && $row['deleted_at'] === null) {
-                        DB::table($table)->where('id', $row['id'])->whereNotNull('deleted_at')->update(['deleted_at' => null]);
+                    foreach ($rows as $row) {
+                        if (isset($row['id'])) {
+                            $exists = DB::table($table)->where('id', $row['id'])->exists();
+                            if (! $exists) {
+                                DB::table($table)->insert($row);
+                                $restoredRecordsCount++;
+                            } elseif (array_key_exists('deleted_at', $row) && $row['deleted_at'] === null) {
+                                DB::table($table)->where('id', $row['id'])->whereNotNull('deleted_at')->update(['deleted_at' => null]);
+                            }
+                        }
                     }
                 }
-            }
 
-            foreach ($snapshot['documents_manifest'] ?? [] as $doc) {
-                if (! empty($doc['file_path']) && ! empty($doc['content_b64'])) {
-                    if (! Storage::disk('local')->exists($doc['file_path'])) {
-                        Storage::disk('local')->put($doc['file_path'], base64_decode($doc['content_b64']));
-                        $restoredFilesCount++;
+                foreach ($snapshot['documents_manifest'] ?? [] as $doc) {
+                    if (! empty($doc['file_path']) && ! empty($doc['content_b64'])) {
+                        if (! Storage::disk('local')->exists($doc['file_path'])) {
+                            Storage::disk('local')->put($doc['file_path'], base64_decode($doc['content_b64']));
+                            $restoredFilesCount++;
+                        }
                     }
                 }
-            }
-        });
+            });
+        } finally {
+            Schema::enableForeignKeyConstraints();
+        }
 
         $backupLog->update([
             'integrity_verified' => true,

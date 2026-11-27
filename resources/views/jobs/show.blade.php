@@ -35,6 +35,85 @@
 <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 text-xs">
     <!-- Left Column: Job Spec, Recruiter Assignment & Interview Workflow -->
     <div class="lg:col-span-5 space-y-6">
+        @if(auth()->user()->hasRole(['super_admin', 'manager', 'team_leader']) || auth()->user()->hasPermission('jobs.update'))
+        <details class="bg-white rounded-xl border border-slate-200 p-5" @if($errors->any() && old('_form') === 'job_update') open @endif>
+            <summary class="text-sm font-bold text-slate-900 flex items-center justify-between">
+                <span>Edit Job Requirement & Openings</span>
+                <span class="text-xs font-medium text-blue-700">Expand</span>
+            </summary>
+            <form method="POST" action="{{ route('jobs.update', $job) }}" enctype="multipart/form-data" class="mt-4 space-y-3 pt-3 border-t border-slate-100">
+                @csrf
+                @method('PUT')
+                <input type="hidden" name="_form" value="job_update">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="sm:col-span-2">
+                        <label class="block font-semibold text-slate-700 mb-1">Job Title *</label>
+                        <input type="text" name="title" value="{{ old('title', $job->title) }}" required class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Openings Required *</label>
+                        <input type="number" min="1" max="500" name="openings_count" value="{{ old('openings_count', $job->openings_count) }}" required class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Location *</label>
+                        <input type="text" name="location" value="{{ old('location', $job->location) }}" required class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Work Mode *</label>
+                        <select name="work_mode" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                            @foreach(['onsite' => 'Onsite', 'hybrid' => 'Hybrid', 'remote' => 'Remote'] as $wk => $wl)
+                                <option value="{{ $wk }}" @selected(old('work_mode', $job->work_mode) === $wk)>{{ $wl }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Priority *</label>
+                        <select name="priority" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                            @foreach(['critical' => 'Critical', 'high' => 'High', 'medium' => 'Medium', 'low' => 'Low'] as $pk => $pl)
+                                <option value="{{ $pk }}" @selected(old('priority', $job->priority) === $pk)>{{ $pl }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Min Exp (Yrs) *</label>
+                        <input type="number" step="0.5" min="0" name="min_experience" value="{{ old('min_experience', $job->min_experience) }}" required class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Max Exp (Yrs)</label>
+                        <input type="number" step="0.5" min="0" name="max_experience" value="{{ old('max_experience', $job->max_experience) }}" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Min Salary</label>
+                        <input type="number" min="0" name="min_salary" value="{{ old('min_salary', $job->min_salary) }}" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Max Salary</label>
+                        <input type="number" min="0" name="max_salary" value="{{ old('max_salary', $job->max_salary) }}" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Status *</label>
+                        <select name="status" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                            @foreach(['new_requirement', 'approved', 'assigned', 'sourcing_in_progress', 'interview_in_progress', 'offer_in_progress', 'partially_filled', 'successfully_closed', 'on_hold', 'cancelled'] as $st)
+                                <option value="{{ $st }}" @selected(old('status', $job->status) === $st)>{{ ucwords(str_replace('_', ' ', $st)) }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Expected Closure Date</label>
+                        <input type="date" name="expected_closure_date" value="{{ old('expected_closure_date', $job->expected_closure_date?->toDateString()) }}" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block font-semibold text-slate-700 mb-1">Required Skills (CSV)</label>
+                        <input type="text" name="required_skills_csv" value="{{ old('required_skills_csv', is_array($job->required_skills) ? implode(', ', $job->required_skills) : '') }}" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                </div>
+                <div class="flex justify-end pt-2">
+                    <button type="submit" class="px-4 py-1.5 rounded-lg bg-[#D3003B] text-white font-semibold">Save Job Updates</button>
+                </div>
+            </form>
+        </details>
+        @endif
+
         <!-- Recruiter Assignment & Workload Module -->
         <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
             <h2 class="text-sm font-bold text-slate-900 dark:text-white mb-3">Assigned Recruiters ({{ $job->assignments->count() }})</h2>
@@ -151,7 +230,7 @@
                                 <td class="px-4 py-3">
                                     <span class="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-semibold text-[10px]">{{ $app->stageLabel() }}</span>
                                 </td>
-                                <td class="px-4 py-3 text-right">{{ number_format((float)$app->expected_ctc) }} {{ $app->currency }}</td>
+                                <td class="px-4 py-3 text-right whitespace-nowrap">{{ $app->expected_ctc ? number_format((float)$app->expected_ctc).' '.$app->currency : '—' }}</td>
                                 <td class="px-4 py-3 text-right">
                                     @if($app->candidate)
                                         <button type="button" @click="openCandidatePreview({{ $app->candidate->id }})" class="text-[#1E40AF] font-semibold hover:underline">360° Preview</button>

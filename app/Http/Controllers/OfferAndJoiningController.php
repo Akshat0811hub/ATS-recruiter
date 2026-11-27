@@ -79,7 +79,7 @@ class OfferAndJoiningController extends Controller
                 $offerLetterStorageId = $rec->id;
             }
 
-            $existingOffer = RecruitmentAccess::query(Offer::class)->where('candidate_application_id', $application->id)->first();
+            $existingOffer = Offer::where('candidate_application_id', $application->id)->lockForUpdate()->first();
             $salaryChanged = $existingOffer && (
                 (float) $existingOffer->offered_salary !== (float) $data['offered_salary']
                 || (float) ($existingOffer->negotiated_salary ?? 0) !== (float) ($data['negotiated_salary'] ?? 0)

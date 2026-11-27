@@ -265,8 +265,11 @@ class DatabaseSeeder extends Seeder
         );
 
         // Super Admin user (always ensured)
+        $adminEmail = strtolower(trim((string) (config('ats.initial_admin_email') ?: 'admin@orbitouch-hr.com')));
+        $adminPassword = (string) (config('ats.initial_admin_password') ?: 'OrbiTouch@2026!');
+
         User::firstOrCreate(
-            ['email' => 'admin@orbitouch-hr.com'],
+            ['email' => $adminEmail],
             [
                 'employee_code' => 'ORB-ADM-001',
                 'organisation_id' => $org->id,
@@ -275,7 +278,7 @@ class DatabaseSeeder extends Seeder
                 'phone' => '+91 9820011001',
                 'designation' => 'Managing Director & Super Admin',
                 'email_verified_at' => now(),
-                'password' => Hash::make('OrbiTouch@2026!'),
+                'password' => Hash::make($adminPassword),
                 'is_active' => true,
             ]
         );
