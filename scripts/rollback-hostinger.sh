@@ -30,7 +30,8 @@ echo "=== [3/5] Checking out target Git reference: ${TARGET_REF} ==="
 git checkout "${TARGET_REF}"
 
 echo "=== [4/5] Re-installing production Composer dependencies and refreshing caches ==="
-"${PHP_BIN}" "${COMPOSER_PHAR}" install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+"${PHP_BIN}" -d memory_limit=-1 "${COMPOSER_PHAR}" install --no-dev --no-scripts --prefer-dist --optimize-autoloader --no-interaction
+"${PHP_BIN}" artisan package:discover --ansi
 "${PHP_BIN}" artisan optimize:clear
 "${PHP_BIN}" artisan config:cache
 "${PHP_BIN}" artisan route:cache

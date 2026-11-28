@@ -83,21 +83,29 @@ Artisan::command('ats:send-reminders', function () {
     $this->info('Dispatched overdue task and interview reminders.');
 })->purpose('Send daily overdue follow-up and interview reminders');
 
-// Hostinger Shared Hosting Cron Schedule (runs via `* * * * * php artisan schedule:run`)
-Schedule::command('queue:work --stop-when-empty --max-time=50')
+// Hostinger Shared Hosting Cron Schedule (runs in-process without proc_open via `* * * * * php artisan schedule:run`)
+Schedule::call(function (): void {
+    Artisan::call('queue:work', ['--stop-when-empty' => true, '--max-time' => 50]);
+})->name('ats-queue-worker')
     ->everyMinute()
     ->withoutOverlapping(2);
 
-Schedule::command('ats:backup --type=full')
+Schedule::call(function (): void {
+    Artisan::call('ats:backup', ['--type' => 'full']);
+})->name('ats-daily-backup')
     ->dailyAt('02:00')
     ->timezone('Asia/Kolkata')
     ->withoutOverlapping();
 
-Schedule::command('ats:storage-check')
+Schedule::call(function (): void {
+    Artisan::call('ats:storage-check');
+})->name('ats-hourly-storage-check')
     ->hourly()
     ->withoutOverlapping();
 
-Schedule::command('ats:send-reminders')
+Schedule::call(function (): void {
+    Artisan::call('ats:send-reminders');
+})->name('ats-daily-reminders')
     ->dailyAt('09:45')
     ->timezone('Asia/Kolkata')
     ->withoutOverlapping();

@@ -27,9 +27,9 @@ fi
 mkdir -p storage/app/private storage/app/backups storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache
 chmod -R 775 storage bootstrap/cache || true
 
-# 1. Create pre-deployment encrypted backup snapshot (skipped automatically on very first install before vendor/migrations)
+# 1. Create pre-deployment encrypted backup snapshot (skipped automatically on very first install before APP_KEY/migrations)
 echo "=== [2/8] Creating pre-deployment encrypted backup ==="
-if [ -f "vendor/autoload.php" ]; then
+if [ -f "vendor/autoload.php" ] && grep -q "^APP_KEY=base64:" .env; then
     "${PHP_BIN}" artisan ats:backup --type=full || echo "Initial deployment: skipping backup prior to first migration."
     "${PHP_BIN}" artisan down --retry=15 || true
 fi
@@ -38,9 +38,10 @@ fi
 echo "=== [3/8] Pulling latest verified code from GitHub (origin/main) ==="
 git pull origin main
 
-# 3. Install production PHP dependencies using the matched PHP 8.3/8.4 CLI
+# 3. Install production PHP dependencies (--no-scripts avoids proc_open restriction on Hostinger CloudLinux)
 echo "=== [4/8] Installing Composer production dependencies ==="
-"${PHP_BIN}" "${COMPOSER_PHAR}" install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+"${PHP_BIN}" -d memory_limit=-1 "${COMPOSER_PHAR}" install --no-dev --no-scripts --prefer-dist --optimize-autoloader --no-interaction
+"${PHP_BIN}" artisan package:discover --ansi
 
 # 4. Generate APP_KEY automatically on first deployment if empty
 if ! grep -q "^APP_KEY=base64:" .env; then
