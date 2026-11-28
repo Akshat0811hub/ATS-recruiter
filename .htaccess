@@ -1,0 +1,16 @@
+<IfModule mod_rewrite.c>
+    Options -Indexes -MultiViews
+    RewriteEngine On
+
+    # Block direct HTTP access to sensitive files and internal directories
+    RewriteRule ^(app|bootstrap|config|database|resources|routes|scripts|storage|tests|vendor)(/|$) - [F,L,NC]
+    RewriteRule ^(\.env.*|\.git.*|artisan|composer\.(json|lock)|package(-lock)?\.json|phpunit\.xml|vite\.config\.js|boost\.json|.*\.(md|sql|sqlite|enc|sh))$ - [F,L,NC]
+
+    # Route all requests cleanly into Laravel's public/ directory when deployed at subdomain root
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L,QSA]
+</IfModule>
+
+<FilesMatch "^(\.env.*|composer\.(json|lock)|artisan|.*\.(sqlite|sql|enc))$">
+    Require all denied
+</FilesMatch>
